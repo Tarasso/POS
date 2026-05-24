@@ -137,12 +137,51 @@ Build strictly in this order. Each phase ships working end-to-end before the nex
 
 Do not jump ahead.
 
+## Phase 0 Outcomes
+
+### Versions installed
+- **Angular CLI**: 21.2.12 (latest, not 17 — see naming changes below)
+- **Node.js**: 24.16.0 LTS
+- **Python**: 3.11.9 (installed alongside system Python 3.13; Functions venv uses 3.11)
+- **Azure Functions Core Tools**: 4.12.0-preview.1 (installed via winget MSI, not npm)
+- **SWA CLI**: 2.0.9
+
+### Azure resources (all in `centralus` / region `Central US`)
+| Resource | Name |
+|---|---|
+| Resource group | `rg-pos` |
+| Cosmos DB (free tier) | `cosmos-pos-kylem` — DB: `pos_db`, containers: `menu`, `orders` |
+| SignalR (serverless) | `signalr-pos-kylem` |
+| Static Web App | `swa-pos-kylem` — https://calm-bay-05dda0610.7.azurestaticapps.net |
+
+### Angular 21 naming changes (deviation from plan)
+Angular CLI 21 drops `.component` from all generated filenames. This affects every future `ng g c` command:
+- Files: `order.ts` / `order.html` / `order.scss` (not `order.component.*`)
+- Class names: `Order`, `Kds`, `Admin`, `Analytics` (not `OrderComponent` etc.)
+- Lazy-load imports: `import('./features/order/order').then(m => m.Order)`
+- Static assets live in `public/` (not `src/assets/`) — icons at `public/icons/`
+
+### Gotchas
+1. **South Central US had no Cosmos DB capacity** — fell back to Central US.
+2. **`swa deploy` CLI wrapper is broken on Windows (v2.0.9).** Call the binary directly:
+   ```powershell
+   $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\StaticSitesClient.exe"
+   & $bin upload --workdir . --app "dist/pos/browser" --api "api" `
+     --apiToken <token> --skipAppBuild true --skipApiBuild true
+   ```
+3. **`--skipApiBuild true` is required** — Oryx (the API build tool inside StaticSitesClient) is Linux-only and crashes on Windows. Azure installs Python packages server-side from `requirements.txt`.
+4. **`func start` needs the Python 3.11 venv in PATH** — system default is 3.13, which the Functions runtime rejects. Run from `/api` with:
+   ```powershell
+   $env:PATH = "C:\Users\kylem\OneDrive\Desktop\POS\api\.venv\Scripts;" + $env:PATH
+   func start
+   ```
+
 ## Commands
 - `npm start` — Angular dev server
-- `func start` — Functions locally (run from `/api`)
+- `func start` — Functions locally (run from `/api`, see gotcha #4 above)
 - `swa start` — full local stack via Static Web Apps CLI
 - `npm run build` — production build
-- `swa deploy` — deploy to Azure
+- `swa deploy` — **broken on Windows**; use StaticSitesClient.exe directly (see gotcha #2)
 
 ## Not in Scope
 - Tax, payments, multi-tenant, user auth (v1), push notifications, order editing
