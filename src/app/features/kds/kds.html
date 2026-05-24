@@ -36,8 +36,7 @@
         [class.urgent-red]="urgencyClass(order.createdAt) === 'urgent-red'"
         [class.is-completing]="completing().has(order.id)"
         [class.first-tapped]="firstTapped().has(order.id)"
-        (touchstart)="onCardTouchStart(order.id)"
-        (dblclick)="onCardDblClick(order.id)"
+        (click)="onCardClick(order.id)"
       >
         <!-- Card header: customer name + live timer -->
         <div class="card-header">

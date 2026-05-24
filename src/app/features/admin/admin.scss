@@ -71,6 +71,10 @@
   font-weight: 600;
   font-size: 1rem;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sort-badge {
@@ -231,6 +235,10 @@
 .group-name {
   font-weight: 600;
   font-size: 0.9375rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .group-rule-badge {
@@ -587,4 +595,78 @@
   color: #6b7280;
   text-align: center;
   padding: 2rem 0;
+}
+
+/* ── Mobile responsive (≤ 480px) ─────────────────────────────────────────── */
+/*
+ * On a phone (~375px viewport) the item row main packs:
+ *   drag-handle + item-name + price + [Sold Out / In Stock] + [Edit] + [✕] + [▼]
+ * into one flex row — it doesn't fit.  We wrap the action buttons onto a
+ * second line so the name and price always have room to breathe.
+ *
+ * Category and group headers already flex-wrap where needed; we just ensure
+ * text nodes can't force overflow by adding an explicit min-width: 0 (done
+ * on the classes above) and allow wrapping here for very long names.
+ */
+
+@media (max-width: 480px) {
+  /* Tighten outer padding so cards have more usable width */
+  .admin {
+    padding: 0.75rem;
+  }
+
+  .card {
+    padding: 0.625rem 0.75rem;
+  }
+
+  /* ── Item row: wrap action buttons to a second line ─────────────────── */
+  .item-row-main {
+    flex-wrap: wrap;
+  }
+
+  /* item-name + item-price stay on the first line (flex:1 + fixed width).
+     Actions get their own full-width second line, right-aligned. */
+  .item-actions {
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 0.375rem;
+    border-top: 1px solid #f3f4f6;
+    flex-wrap: wrap;    // rare: allows "Sold Out" button to wrap if truly tiny
+  }
+
+  /* ── Category header: allow long names to wrap ───────────────────────── */
+  .category-header {
+    flex-wrap: wrap;
+  }
+
+  /* ── Shrink sort badge so it doesn't eat space ───────────────────────── */
+  .sort-badge {
+    font-size: 0.6875rem;
+  }
+
+  /* ── Tab bar: let labels shrink slightly ─────────────────────────────── */
+  .tab-btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+  }
+
+  /* ── Form layout: give the "short" field a bit more breathing room ───── */
+  .form-field-short {
+    flex: 0 0 7rem;
+  }
+
+  /* ── Modifier group header actions: always wrap under group name ─────── */
+  .group-header {
+    align-items: flex-start;
+  }
+
+  .group-header-left {
+    // Ensure rule badge doesn't push name off screen on a tiny viewport
+    flex-wrap: wrap;
+  }
+
+  /* ── Assign-items panel: tighten inner padding ───────────────────────── */
+  .assign-panel {
+    padding: 0.625rem;
+  }
 }

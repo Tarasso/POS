@@ -30,6 +30,12 @@ export class Kds implements OnInit, OnDestroy {
   readonly firstTapped = signal<Set<string>>(new Set<string>());
   private firstTapTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+  // Timestamp of the last click per order — used for manual double-tap detection.
+  // More reliable than (dblclick) on iPhone where the browser hit-test for
+  // synthesising dblclick from two quick taps is stricter than on iPad/desktop.
+  private lastClickTime = new Map<string, number>();
+  private readonly DOUBLE_TAP_MS = 400;
+
   // ── 1-second tick to drive live timers ───────────────────────────────────
   private readonly tick = signal(0);
   private tickInterval: ReturnType<typeof setInterval> | null = null;
@@ -55,9 +61,10 @@ export class Kds implements OnInit, OnDestroy {
       clearInterval(this.tickInterval);
       this.tickInterval = null;
     }
-    // Clean up any pending first-tap timers.
+    // Clean up any pending first-tap timers and click-time tracking.
     this.firstTapTimers.forEach(t => clearTimeout(t));
     this.firstTapTimers.clear();
+    this.lastClickTime.clear();
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
@@ -90,34 +97,45 @@ export class Kds implements OnInit, OnDestroy {
   // ── Double-tap / double-click to complete ─────────────────────────────────
 
   /**
-   * Fires on touchstart of the card. Records the first tap so we can show the
-   * "Tap again!" hint. CSS `touch-action: manipulation` on the card ensures
-   * the browser fires dblclick quickly (without the 300 ms zoom-detection delay)
-   * on the second tap, which is where the actual completion happens.
+   * Unified handler for both mouse clicks (desktop) and touch taps (mobile).
+   *
+   * Why (click) instead of (touchstart)+(dblclick):
+   *   `dblclick` synthesis from touch works reliably on iPad and desktop but is
+   *   flaky on iPhone — iOS requires both taps to land on the *exact same DOM
+   *   element*, which fails when sub-elements (qty badge, pill chip, etc.) absorb
+   *   the touch.  Using (click) with manual timestamp tracking is cross-device
+   *   reliable.  `touch-action: manipulation` on the card (set in the SCSS) still
+   *   removes the 300 ms delay so the click fires instantly on the first tap.
+   *
+   * Flow:
+   *   First tap  → record timestamp, show "Tap again!" hint for DOUBLE_TAP_MS.
+   *   Second tap within DOUBLE_TAP_MS → clear hint, call completeOrder().
+   *   No second tap → hint auto-clears when the timer fires.
    */
-  onCardTouchStart(orderId: string): void {
-    if (this.completing().has(orderId) || this.firstTapped().has(orderId)) return;
-    // Mark first tap and auto-clear after 450 ms if no second tap follows.
-    this.firstTapped.update(s => new Set([...s, orderId]));
-    const timer = setTimeout(() => {
+  onCardClick(orderId: string): void {
+    const now = Date.now();
+    const last = this.lastClickTime.get(orderId) ?? 0;
+
+    if (last > 0 && now - last < this.DOUBLE_TAP_MS) {
+      // ── Second tap: complete the order ──────────────────────────────────
+      this.lastClickTime.delete(orderId);
+      const timer = this.firstTapTimers.get(orderId);
+      if (timer) { clearTimeout(timer); this.firstTapTimers.delete(orderId); }
       this.firstTapped.update(s => { const n = new Set(s); n.delete(orderId); return n; });
-      this.firstTapTimers.delete(orderId);
-    }, 450);
-    this.firstTapTimers.set(orderId, timer);
-  }
-
-  /**
-   * Fires on dblclick (desktop) and on a double-tap (iOS/iPad, thanks to
-   * `touch-action: manipulation` which eliminates the 300 ms delay).
-   */
-  onCardDblClick(orderId: string): void {
-    // Clear the first-tap hint state.
-    const timer = this.firstTapTimers.get(orderId);
-    if (timer) { clearTimeout(timer); this.firstTapTimers.delete(orderId); }
-    this.firstTapped.update(s => { const n = new Set(s); n.delete(orderId); return n; });
-
-    if (!this.completing().has(orderId)) {
-      this.completeOrder(orderId);
+      if (!this.completing().has(orderId)) {
+        this.completeOrder(orderId);
+      }
+    } else {
+      // ── First tap: show "Tap again!" hint ───────────────────────────────
+      this.lastClickTime.set(orderId, now);
+      if (this.completing().has(orderId) || this.firstTapped().has(orderId)) return;
+      this.firstTapped.update(s => new Set([...s, orderId]));
+      const timer = setTimeout(() => {
+        this.firstTapped.update(s => { const n = new Set(s); n.delete(orderId); return n; });
+        this.firstTapTimers.delete(orderId);
+        this.lastClickTime.delete(orderId);
+      }, this.DOUBLE_TAP_MS);
+      this.firstTapTimers.set(orderId, timer);
     }
   }
 
