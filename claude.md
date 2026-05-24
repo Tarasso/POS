@@ -201,11 +201,44 @@ Angular CLI 21 drops `.component` from all generated filenames. This affects eve
 7. **Angular 17+ built-in control flow (`@if`, `@for`) makes `NgIf`/`NgFor` imports unnecessary** — importing them causes compiler warnings. Omit them from `standalone: true` component `imports` arrays when using block syntax.
 
 ## Commands
-- `npm start` — Angular dev server
-- `func start` — Functions locally (run from `/api`, see gotcha #4 and #5 above)
-- `swa start` — full local stack via Static Web Apps CLI
-- `npm run build` — production build
-- `swa deploy` — **broken on Windows**; use StaticSitesClient.exe directly (see gotcha #2)
+
+### Local development (3 terminals required)
+
+**Terminal 1 — API** (func.exe uses bundled Python 3.13 worker; azure-cosmos must be installed in system Python 3.13):
+```powershell
+& "C:\Program Files\Microsoft\Azure Functions Core Tools\func.exe" start --script-root "C:\Users\kylem\OneDrive\Desktop\POS\api"
+```
+
+**Terminal 2 — Angular dev server** (prepend nodejs to PATH first):
+```powershell
+$env:PATH = "C:\Program Files\nodejs;C:\Users\kylem\AppData\Roaming\npm;" + $env:PATH
+cd C:\Users\kylem\OneDrive\Desktop\POS
+npm start
+```
+
+**Terminal 3 — SWA proxy** (wait for Terminal 2 to be ready first; use 4280, not 4200):
+```powershell
+$env:PATH = "C:\Program Files\nodejs;C:\Users\kylem\AppData\Roaming\npm;" + $env:PATH
+cd C:\Users\kylem\OneDrive\Desktop\POS
+swa start http://localhost:4200 --api-devserver-url http://localhost:7071
+```
+Browse to **http://localhost:4280/admin**
+
+### Deploy to Azure
+
+```powershell
+# 1. Bundle packages (required; Azure won't auto-install when --skipApiBuild is used)
+& "C:\Program Files\Python313\python.exe" -m pip install -r api\requirements.txt --target api\.python_packages\lib\site-packages
+
+# 2. Build
+$env:PATH = "C:\Program Files\nodejs;" + $env:PATH
+npm run build
+
+# 3. Upload
+$bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\StaticSitesClient.exe"
+& $bin upload --workdir . --app "dist/pos/browser" --api "api" `
+  --apiToken <token> --skipAppBuild true --skipApiBuild true --configFileLocation "."
+```
 
 ## Not in Scope
 - Tax, payments, multi-tenant, user auth (v1), push notifications, order editing
