@@ -13,6 +13,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
         <a class="nav-link" routerLink="/kds"       routerLinkActive="nav-link-active">KDS</a>
         <a class="nav-link" routerLink="/admin"     routerLinkActive="nav-link-active">Admin</a>
         <a class="nav-link" routerLink="/analytics" routerLinkActive="nav-link-active">Analytics</a>
+        <a class="nav-link nav-link-signout" href="/.auth/logout">Sign out</a>
       </div>
     </nav>
     <div class="app-content">
@@ -73,6 +74,10 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
     .nav-link-active {
       color: #fff;
       background: rgba(255, 255, 255, 0.12);
+    }
+
+    .nav-link-signout {
+      margin-left: auto;
     }
 
     .app-content {

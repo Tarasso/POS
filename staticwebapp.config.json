@@ -8,10 +8,24 @@
   },
   "routes": [
     {
-      "route": "/api/*",
+      "route": "/.auth/*",
       "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["staff", "owner"]
+    },
+    {
+      "route": "/*",
+      "allowedRoles": ["staff", "owner"]
     }
   ],
+  "responseOverrides": {
+    "401": {
+      "redirect": "/.auth/login/aad",
+      "statusCode": 302
+    }
+  },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "SAMEORIGIN",
