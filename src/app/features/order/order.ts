@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed, ViewChild, ElementRef } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, ViewChild, ElementRef, ChangeDetectorRef } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MenuService } from '../../core/services/menu.service';
@@ -18,6 +18,7 @@ type View = 'menu' | 'category' | 'modifiers';
 export class Order implements OnInit {
   private menuService = inject(MenuService);
   private orderService = inject(OrderService);
+  private cdr = inject(ChangeDetectorRef);
 
   // ── Menu state ────────────────────────────────────────────────────────────
   readonly menu = this.menuService.menu;
@@ -168,6 +169,9 @@ export class Order implements OnInit {
           optionId: option.id,
           optionName: option.name,
           ...(customText ? { customText } : {}),
+          // Snapshot the KDS pill color at order-placement time so the KDS
+          // always renders the color that was set when the order was placed.
+          ...(option.color ? { color: option.color } : {}),
         });
       }
     }
@@ -192,16 +196,28 @@ export class Order implements OnInit {
   remove(cartLineId: string): void    { this.orderService.removeItem(cartLineId); }
 
   // ── Cart preview sheet ────────────────────────────────────────────────────
-  openCartPreview(): void  { this.showCartPreview.set(true); }
-  closeCartPreview(): void { this.showCartPreview.set(false); }
+  openCartPreview(): void    { this.showCartPreview.set(true); }
+  closeCartPreview(): void   { this.showCartPreview.set(false); }
+  /** Tapping the cart-peek button a second time collapses the preview. */
+  toggleCartPreview(): void  { this.showCartPreview.update(v => !v); }
 
   // ── Name prompt sheet ─────────────────────────────────────────────────────
   openNamePrompt(): void {
     this.showCartPreview.set(false); // close cart sheet if open
     this.showNamePrompt.set(true);
-    // Focus the input after Angular renders the sheet; a 0 ms timeout keeps us
-    // within the browser's "user gesture" window so iOS triggers the keyboard.
-    setTimeout(() => this.nameInputRef?.nativeElement.focus(), 0);
+    // iOS Safari only triggers the soft keyboard when focus() is called
+    // within the same user-gesture tick. detectChanges() forces Angular to
+    // render the name-sheet template synchronously so the input element is
+    // in the DOM before we focus it — no setTimeout needed.
+    this.cdr.detectChanges();
+    const el = this.nameInputRef?.nativeElement;
+    if (el) {
+      el.focus();
+    } else {
+      // Fallback: element not yet available, try in the next microtask.
+      // This keeps us inside the gesture window on most browsers.
+      setTimeout(() => this.nameInputRef?.nativeElement?.focus(), 0);
+    }
   }
 
   closeNamePrompt(): void { this.showNamePrompt.set(false); }

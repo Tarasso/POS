@@ -507,10 +507,68 @@ The `cart` view type is removed. Cart editing and order submission are now drive
 
 ### Post-Phase 5 Gotchas
 
-23. **iOS soft keyboard requires `focus()` within a user-gesture tick** — call `setTimeout(() => input.focus(), 0)` inside the click handler that shows the input. The 0 ms delay lets Angular render the sheet while staying within the browser's gesture-trust window. Calling `.focus()` in a later macrotask may be silently ignored by iOS Safari.
+23. **iOS soft keyboard — use `ChangeDetectorRef.detectChanges()` + immediate `focus()`** — `setTimeout(..., 0)` is unreliable; iOS Safari closes the gesture-trust window before the macrotask fires. The correct pattern: inject `ChangeDetectorRef`, call `this.cdr.detectChanges()` immediately after setting the signal that renders the input, then call `.focus()` synchronously. This forces Angular to render the template in the same gesture tick so the element is in the DOM before focus is called. Applied in `openNamePrompt()` in `order.ts`.
 24. **`touch-action: manipulation` enables `dblclick` on touch screens** — this CSS property disables the browser's double-tap-to-zoom gesture, which also removes the 300 ms click delay. With it, iOS/Android fires `dblclick` immediately on two quick taps, identical to a mouse double-click. Set it on any element that needs `(dblclick)` to work at full speed on touch devices.
 25. **HTML5 drag-and-drop does not fire on iOS Safari** — the drag-and-drop item reorder in the admin UI uses the HTML5 Drag-and-Drop API, which is not supported on iOS/iPadOS without a polyfill. This is acceptable since the admin UI is used on desktop/Mac. If mobile admin editing is ever needed, replace with pointer-event-based drag logic.
 26. **`forkJoin` with an empty array resolves immediately** — `forkJoin([])` completes synchronously with `[]`. This is fine for the reorder path but means the `.tap(() => loadMenu())` still fires even when no reorder calls were made.
+
+## UI Polish — Responsive Order Screen + Color System
+
+### Responsive order screen
+
+- **Category tile grid** (`.category-tile-grid`) — 1 column on `max-width: 430px`. Item tiles within a category use the base `.tile-grid` which always stays 2 columns. The two grids share `.tile` styles but have independent column rules.
+- **Action bar stacking** — at `≤ 430px` the cart-peek and Place Order buttons stack vertically (each full-width). A CSS custom property `--bar-h` on `.order-page` tracks the action bar height and is updated in the same media query:
+  - Horizontal: `calc(4rem + max(0.75rem, env(safe-area-inset-bottom, 0.75rem)))`
+  - Vertical (stacked): `calc(7.875rem + max(0.75rem, env(safe-area-inset-bottom, 0.75rem)))`
+
+### Cart preview sheet — floats above action bar
+
+The cart sheet (`.cart-sheet`) is positioned with `bottom: var(--bar-h)` so it slides up from just above the action bar and never covers the cart-peek or Place Order buttons. The cart-specific backdrop (`.cart-backdrop`) also stops at `bottom: var(--bar-h)` so taps on the action bar pass through. The name sheet (`.name-sheet`) intentionally stays at `bottom: 0` and covers the action bar (you're done browsing at that point).
+
+The cart-peek button calls `toggleCartPreview()` (`showCartPreview.update(v => !v)`) — a second tap collapses the preview without needing to reach the ✕ button.
+
+### Color system
+
+All color fields are optional hex strings (e.g. `"#ef4444"`). Empty string or `null` means no custom color.
+
+**Where colors live:**
+- `Category.color?` — tile background on the order screen menu view
+- `MenuItem.color?` — tile background on the order screen category view
+- `ModifierOption.color?` — KDS modifier pill background; snapshotted into `AppliedModifier.color?` at order-placement time so the KDS always shows the color that was active when the order was placed
+
+**Admin UI** — every add/edit form for categories, items, and modifier options has a "Tile color" / "KDS pill color" checkbox. When checked, a native `<input type="color">` picker appears with the current hex shown alongside. Unchecking sends `""` which the API converts to `null`. The modifier option read-only list shows a small color dot swatch when a color is set.
+
+**Order screen tiles** — `[style.background]="item.color || null"` and `[style.border-color]="item.color ? 'transparent' : null"`. Light-colored tiles look best; dark tiles may need the default dark text replaced (not currently auto-detected on the order screen — pick light/pastel shades).
+
+**KDS pills** — `kds.ts` has `modPillStyle()` / `modPillTextColor()` using ITU-R BT.601 perceived luminance:
+```typescript
+const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+return lum > 0.55 ? '#1a1a1a' : '#ffffff';
+```
+Colored pills get the custom background, auto-contrast text, and a transparent border. Both live-order pills and the completed-history panel pills receive the same treatment.
+
+**Current KDS pill colors (set directly in Cosmos):**
+| Option | Color | Hex |
+|--------|-------|-----|
+| Hot | Red | `#ef4444` |
+| Oat Milk | Amber | `#f59e0b` |
+
+**API changes** — `color` field handled in: `POST/PUT /api/menu/categories`, `POST/PUT /api/menu/items`, `POST/PUT /api/menu/modifier-options`. Pattern: `existing["color"] = body["color"] or None`.
+
+**Utility script** — `api/set_option_colors.py` queries all modifier options by name (case-insensitive) and upserts colors. Safe to re-run. Extend `COLOR_MAP` dict to add more options:
+```python
+COLOR_MAP: dict[str, str] = {
+    "hot":      "#ef4444",
+    "oat milk": "#f59e0b",
+}
+```
+Run with: `& "C:\Program Files\Python313\python.exe" api\set_option_colors.py`
+
+### Post-UI-Polish Gotchas
+
+27. **`--bar-h` CSS variable must be updated in every breakpoint that changes the action bar height** — the variable is defined on `.order-page` and overridden in the `≤430px` media query. If you add another breakpoint or change button heights, update both the action bar layout AND `--bar-h`. Failing to do so causes the cart sheet to overlap the bar.
+28. **`AppliedModifier.color` is a snapshot, not a live lookup** — changing a modifier option's color in the admin has no effect on orders already placed. Only new orders pick up the new color. This is intentional: consistent with how `optionName` is already snapshotted.
+29. **Windows terminal encoding** — `api/set_option_colors.py` avoids non-ASCII characters in print statements to prevent `cp1252` encoding errors on Windows PowerShell. Keep print strings ASCII-only in all Python scripts.
 
 ## Not in Scope
 - Tax, payments, multi-tenant, push notifications, order editing

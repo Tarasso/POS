@@ -60,7 +60,12 @@
               @if (item.modifiers.length > 0) {
                 <div class="item-mods">
                   @for (mod of item.modifiers; track mod.optionId) {
-                    <span class="mod-pill">
+                    <span
+                      class="mod-pill"
+                      [style.background]="mod.color || null"
+                      [style.color]="mod.color ? modPillTextColor(mod.color) : null"
+                      [style.border-color]="mod.color ? 'transparent' : null"
+                    >
                       {{ mod.optionName }}@if (mod.customText) {<span class="mod-custom-text">: {{ mod.customText }}</span>}
                     </span>
                   }
@@ -127,7 +132,12 @@
                       @if (item.modifiers.length > 0) {
                         <div class="co-mods">
                           @for (mod of item.modifiers; track mod.optionId) {
-                            <span class="co-mod-pill">{{ mod.optionName }}@if (mod.customText) {: {{ mod.customText }}}</span>
+                            <span
+                              class="co-mod-pill"
+                              [style.background]="mod.color || null"
+                              [style.color]="mod.color ? modPillTextColor(mod.color) : null"
+                              [style.border-color]="mod.color ? 'transparent' : null"
+                            >{{ mod.optionName }}@if (mod.customText) {: {{ mod.customText }}}</span>
                           }
                         </div>
                       }

@@ -41,10 +41,15 @@
         @if (tree.categories.length === 0) {
           <p class="state-msg">No categories available.</p>
         } @else {
-          <div class="tile-grid">
+          <div class="tile-grid category-tile-grid">
             @for (cat of tree.categories; track cat.id) {
               @if (cat.items.length > 0) {
-                <button class="tile" (click)="showCategory(cat)">{{ cat.name }}</button>
+                <button
+                  class="tile"
+                  [style.background]="cat.color || null"
+                  [style.border-color]="cat.color ? 'transparent' : null"
+                  (click)="showCategory(cat)"
+                >{{ cat.name }}</button>
               }
             }
           </div>
@@ -72,6 +77,8 @@
               class="tile"
               [class.tile-sold-out]="item.soldOut"
               [disabled]="item.soldOut"
+              [style.background]="item.color || null"
+              [style.border-color]="item.color ? 'transparent' : null"
               (click)="addToCart(item)"
             >
               {{ item.name }}
@@ -157,8 +164,8 @@
   @if (cartCount() > 0 && currentView() !== 'modifiers') {
     <div class="order-action-bar">
 
-      <!-- Cart preview trigger -->
-      <button class="cart-peek-btn" (click)="openCartPreview()" aria-label="View order">
+      <!-- Cart preview trigger — second tap collapses the sheet -->
+      <button class="cart-peek-btn" (click)="toggleCartPreview()" aria-label="View order">
         <span class="cart-peek-badge">{{ cartCount() }}</span>
         <span class="cart-peek-label">
           {{ cartCount() === 1 ? '1 item' : cartCount() + ' items' }}
@@ -179,7 +186,7 @@
        Bottom sheet — slides up to show the current cart with qty editing.
   ═══════════════════════════════════════════════════════════════════════════ -->
   @if (showCartPreview()) {
-    <div class="sheet-backdrop" (click)="closeCartPreview()"></div>
+    <div class="sheet-backdrop cart-backdrop" (click)="closeCartPreview()"></div>
     <div class="cart-sheet" role="dialog" aria-label="Your order">
 
       <div class="sheet-drag-handle"></div>

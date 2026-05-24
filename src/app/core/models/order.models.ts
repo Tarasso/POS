@@ -6,6 +6,12 @@ export interface AppliedModifier {
   optionName: string;
   /** Present only when the option has allowsCustomText=true and the user typed something. */
   customText?: string;
+  /**
+   * KDS pill background color (hex), snapshotted from ModifierOption.color at
+   * order-placement time so the KDS always shows the color that was current
+   * when the order was placed.
+   */
+  color?: string;
 }
 
 /** One line item inside an order — sent in the POST body and stored in Cosmos. */

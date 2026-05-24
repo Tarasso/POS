@@ -55,6 +55,16 @@
                 [(ngModel)]="categoryForm.sortOrder" />
             </div>
           </div>
+          <div class="form-row form-row-checkbox">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="categoryForm.useColor" />
+              Tile color
+            </label>
+            @if (categoryForm.useColor) {
+              <input type="color" class="input-color" [(ngModel)]="categoryForm.color" />
+              <span class="color-preview-label">{{ categoryForm.color }}</span>
+            }
+          </div>
           <div class="form-actions">
             <button class="btn btn-primary" (click)="saveNewCategory()" [disabled]="saving()">Save</button>
             <button class="btn btn-ghost"   (click)="cancelAddCategory()">Cancel</button>
@@ -79,6 +89,16 @@
                   <input class="input" type="number" placeholder="0" min="0"
                     [(ngModel)]="editCategoryForm.sortOrder" />
                 </div>
+              </div>
+              <div class="form-row form-row-checkbox">
+                <label class="checkbox-label">
+                  <input type="checkbox" [(ngModel)]="editCategoryForm.useColor" />
+                  Tile color
+                </label>
+                @if (editCategoryForm.useColor) {
+                  <input type="color" class="input-color" [(ngModel)]="editCategoryForm.color" />
+                  <span class="color-preview-label">{{ editCategoryForm.color }}</span>
+                }
               </div>
               <div class="form-actions">
                 <button class="btn btn-primary" (click)="saveEditCategory()" [disabled]="saving()">Save</button>
@@ -109,6 +129,16 @@
                       <input class="input" type="number" placeholder="0.00" min="0" step="0.25"
                         [(ngModel)]="editItemForm.price" />
                     </div>
+                  </div>
+                  <div class="form-row form-row-checkbox">
+                    <label class="checkbox-label">
+                      <input type="checkbox" [(ngModel)]="editItemForm.useColor" />
+                      Tile color
+                    </label>
+                    @if (editItemForm.useColor) {
+                      <input type="color" class="input-color" [(ngModel)]="editItemForm.color" />
+                      <span class="color-preview-label">{{ editItemForm.color }}</span>
+                    }
                   </div>
                   <div class="form-actions">
                     <button class="btn btn-primary btn-sm" (click)="saveEditItem()" [disabled]="saving()">Save</button>
@@ -192,6 +222,16 @@
                   <input class="input" type="number" placeholder="0.00" min="0" step="0.25"
                     [(ngModel)]="itemForm.price" />
                 </div>
+              </div>
+              <div class="form-row form-row-checkbox">
+                <label class="checkbox-label">
+                  <input type="checkbox" [(ngModel)]="itemForm.useColor" />
+                  Tile color
+                </label>
+                @if (itemForm.useColor) {
+                  <input type="color" class="input-color" [(ngModel)]="itemForm.color" />
+                  <span class="color-preview-label">{{ itemForm.color }}</span>
+                }
               </div>
               @if (addItemError()) {
                 <p class="form-error">{{ addItemError() }}</p>
@@ -328,6 +368,16 @@
                         Custom text input
                       </label>
                     </div>
+                    <div class="form-row form-row-checkbox">
+                      <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="editOptionForm.useColor" />
+                        KDS pill color
+                      </label>
+                      @if (editOptionForm.useColor) {
+                        <input type="color" class="input-color" [(ngModel)]="editOptionForm.color" />
+                        <span class="color-preview-label">{{ editOptionForm.color }}</span>
+                      }
+                    </div>
                     <div class="form-actions">
                       <button class="btn btn-primary btn-sm" (click)="saveEditOption()" [disabled]="saving()">Save</button>
                       <button class="btn btn-ghost btn-sm"   (click)="cancelEditOption()">Cancel</button>
@@ -336,6 +386,10 @@
                 } @else {
                   <li class="option-row">
                     <span class="option-name">{{ option.name }}</span>
+                    @if (option.color) {
+                      <span class="option-color-swatch" [style.background]="option.color"
+                        [title]="'KDS color: ' + option.color"></span>
+                    }
                     @if (option.isDefault) {
                       <span class="badge badge-default">Default</span>
                     }
@@ -367,6 +421,16 @@
                     <input type="checkbox" [(ngModel)]="optionForm.allowsCustomText" />
                     Custom text input
                   </label>
+                </div>
+                <div class="form-row form-row-checkbox">
+                  <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="optionForm.useColor" />
+                    KDS pill color
+                  </label>
+                  @if (optionForm.useColor) {
+                    <input type="color" class="input-color" [(ngModel)]="optionForm.color" />
+                    <span class="color-preview-label">{{ optionForm.color }}</span>
+                  }
                 </div>
                 <div class="form-actions">
                   <button class="btn btn-primary btn-sm" (click)="saveNewOption()" [disabled]="saving()">Add</button>

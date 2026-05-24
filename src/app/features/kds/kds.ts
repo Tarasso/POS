@@ -121,6 +121,21 @@ export class Kds implements OnInit, OnDestroy {
     }
   }
 
+  // ── Modifier pill helpers ──────────────────────────────────────────────────
+
+  /**
+   * Returns the text color to use over a given hex background so pills are
+   * always legible on the KDS.  Dark text for light backgrounds, white for dark.
+   */
+  modPillTextColor(bgHex: string): string {
+    const r = parseInt(bgHex.slice(1, 3), 16);
+    const g = parseInt(bgHex.slice(3, 5), 16);
+    const b = parseInt(bgHex.slice(5, 7), 16);
+    // Perceived luminance (ITU-R BT.601 coefficients)
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.55 ? '#1a1a1a' : '#ffffff';
+  }
+
   // ── Timer helpers ─────────────────────────────────────────────────────────
 
   /**

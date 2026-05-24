@@ -13,8 +13,8 @@ import {
 
 // ── Form interfaces ────────────────────────────────────────────────────────────
 
-interface CategoryForm { name: string; sortOrder: number; }
-interface ItemForm     { name: string; categoryId: string; price: number | null; sortOrder: number; }
+interface CategoryForm { name: string; sortOrder: number; useColor: boolean; color: string; }
+interface ItemForm     { name: string; categoryId: string; price: number | null; sortOrder: number; useColor: boolean; color: string; }
 
 interface ModifierGroupForm {
   name: string;
@@ -29,6 +29,8 @@ interface ModifierOptionForm {
   isDefault: boolean;
   allowsCustomText: boolean;
   sortOrder: number;
+  useColor: boolean;
+  color: string;
 }
 
 @Component({
@@ -98,29 +100,43 @@ export class Admin implements OnInit {
   }
   cancelAddCategory(): void { this.showAddCategory.set(false); }
   saveNewCategory(): void {
-    const { name, sortOrder } = this.categoryForm;
+    const { name, sortOrder, useColor, color } = this.categoryForm;
     if (!name.trim()) return;
     this.saveError.set(null);
     this.saving.set(true);
-    this.menuService.createCategory({ name: name.trim(), sortOrder }).subscribe({
+    this.menuService.createCategory({
+      name: name.trim(),
+      sortOrder,
+      ...(useColor ? { color } : {}),
+    }).subscribe({
       next: () => { this.showAddCategory.set(false); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
   startEditCategory(cat: CategoryWithItems): void {
-    this.editCategoryForm = { name: cat.name, sortOrder: cat.sortOrder };
+    this.editCategoryForm = {
+      name: cat.name,
+      sortOrder: cat.sortOrder,
+      useColor: !!cat.color,
+      color: cat.color ?? '#3b82f6',
+    };
     this.editingCategory.set(cat);
   }
   cancelEditCategory(): void { this.editingCategory.set(null); }
   saveEditCategory(): void {
     const cat = this.editingCategory();
     if (!cat) return;
-    const { name, sortOrder } = this.editCategoryForm;
+    const { name, sortOrder, useColor, color } = this.editCategoryForm;
     if (!name.trim()) return;
     this.saveError.set(null);
     this.saving.set(true);
-    this.menuService.updateCategory(cat.id, { name: name.trim(), sortOrder }).subscribe({
+    this.menuService.updateCategory(cat.id, {
+      name: name.trim(),
+      sortOrder,
+      // Send '' to explicitly clear an existing color when unchecked
+      color: useColor ? color : '',
+    }).subscribe({
       next: () => { this.editingCategory.set(null); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
@@ -151,7 +167,7 @@ export class Admin implements OnInit {
     this.addingItemToCatId.set(null);
   }
   saveNewItem(): void {
-    const { name, categoryId, price } = this.itemForm;
+    const { name, categoryId, price, useColor, color } = this.itemForm;
     if (!name.trim()) {
       this.addItemError.set('Item name is required.');
       return;
@@ -167,7 +183,13 @@ export class Admin implements OnInit {
     this.addItemError.set(null);
     this.saveError.set(null);
     this.saving.set(true);
-    this.menuService.createItem({ name: name.trim(), categoryId, price: price as number, sortOrder: nextSortOrder }).subscribe({
+    this.menuService.createItem({
+      name: name.trim(),
+      categoryId,
+      price: price as number,
+      sortOrder: nextSortOrder,
+      ...(useColor ? { color } : {}),
+    }).subscribe({
       next: () => { this.addingItemToCatId.set(null); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
@@ -175,18 +197,32 @@ export class Admin implements OnInit {
 
   startEditItem(item: MenuItem): void {
     this.expandedItemId.set(null); // close expand panel while editing
-    this.editItemForm = { name: item.name, categoryId: item.categoryId, price: item.price, sortOrder: item.sortOrder };
+    this.editItemForm = {
+      name: item.name,
+      categoryId: item.categoryId,
+      price: item.price,
+      sortOrder: item.sortOrder,
+      useColor: !!item.color,
+      color: item.color ?? '#3b82f6',
+    };
     this.editingItem.set(item);
   }
   cancelEditItem(): void { this.editingItem.set(null); }
   saveEditItem(): void {
     const item = this.editingItem();
     if (!item) return;
-    const { name, categoryId, price, sortOrder } = this.editItemForm;
+    const { name, categoryId, price, sortOrder, useColor, color } = this.editItemForm;
     if (!name.trim() || price === null) return;
     this.saveError.set(null);
     this.saving.set(true);
-    this.menuService.updateItem(item.id, { name: name.trim(), categoryId, price: price!, sortOrder }).subscribe({
+    this.menuService.updateItem(item.id, {
+      name: name.trim(),
+      categoryId,
+      price: price!,
+      sortOrder,
+      // Send '' to explicitly clear an existing color when unchecked
+      color: useColor ? color : '',
+    }).subscribe({
       next: () => { this.editingItem.set(null); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
@@ -351,6 +387,7 @@ export class Admin implements OnInit {
       isDefault: this.optionForm.isDefault,
       allowsCustomText: this.optionForm.allowsCustomText,
       sortOrder: this.optionForm.sortOrder,
+      ...(this.optionForm.useColor ? { color: this.optionForm.color } : {}),
     }).subscribe({
       next: () => { this.addingOptToGrpId.set(null); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
@@ -363,6 +400,8 @@ export class Admin implements OnInit {
       isDefault: option.isDefault,
       allowsCustomText: option.allowsCustomText,
       sortOrder: option.sortOrder,
+      useColor: !!option.color,
+      color: option.color ?? '#3b82f6',
     };
     this.editingOption.set(option);
   }
@@ -377,6 +416,8 @@ export class Admin implements OnInit {
       isDefault: this.editOptionForm.isDefault,
       allowsCustomText: this.editOptionForm.allowsCustomText,
       sortOrder: this.editOptionForm.sortOrder,
+      // Send '' to explicitly clear an existing color when unchecked
+      color: this.editOptionForm.useColor ? this.editOptionForm.color : '',
     }).subscribe({
       next: () => { this.editingOption.set(null); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
@@ -515,8 +556,8 @@ export class Admin implements OnInit {
 
   // ── Private blank-form factories ───────────────────────────────────────────
 
-  private _blankCategoryForm(): CategoryForm { return { name: '', sortOrder: 0 }; }
-  private _blankItemForm(catId: string): ItemForm { return { name: '', categoryId: catId, price: null, sortOrder: 0 }; }
+  private _blankCategoryForm(): CategoryForm { return { name: '', sortOrder: 0, useColor: false, color: '#3b82f6' }; }
+  private _blankItemForm(catId: string): ItemForm { return { name: '', categoryId: catId, price: null, sortOrder: 0, useColor: false, color: '#3b82f6' }; }
   private _blankGroupForm(): ModifierGroupForm { return { name: '', minSelections: 0, maxUnlimited: false, maxSelections: 1, sortOrder: 0 }; }
-  private _blankOptionForm(): ModifierOptionForm { return { name: '', isDefault: false, allowsCustomText: false, sortOrder: 0 }; }
+  private _blankOptionForm(): ModifierOptionForm { return { name: '', isDefault: false, allowsCustomText: false, sortOrder: 0, useColor: false, color: '#3b82f6' }; }
 }

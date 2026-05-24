@@ -42,7 +42,7 @@ export class MenuService {
 
   // ── Category mutations ──────────────────────────────────────────────────
 
-  createCategory(payload: { name: string; sortOrder: number; parentId?: string | null }): Observable<Category> {
+  createCategory(payload: { name: string; sortOrder: number; parentId?: string | null; color?: string }): Observable<Category> {
     return this.http.post<Category>('/api/menu/categories', payload).pipe(
       tap(() => this.loadMenu()),
     );
@@ -50,7 +50,7 @@ export class MenuService {
 
   updateCategory(
     id: string,
-    payload: Partial<Pick<Category, 'name' | 'sortOrder' | 'parentId'>>,
+    payload: Partial<Pick<Category, 'name' | 'sortOrder' | 'parentId' | 'color'>>,
   ): Observable<Category> {
     return this.http.put<Category>(`/api/menu/categories/${id}`, payload).pipe(
       tap(() => this.loadMenu()),
@@ -64,6 +64,7 @@ export class MenuService {
     categoryId: string;
     price: number;
     sortOrder: number;
+    color?: string;
   }): Observable<MenuItem> {
     return this.http.post<MenuItem>('/api/menu/items', payload).pipe(
       tap(() => this.loadMenu()),
@@ -72,7 +73,7 @@ export class MenuService {
 
   updateItem(
     id: string,
-    payload: Partial<Pick<MenuItem, 'name' | 'categoryId' | 'price' | 'sortOrder'>>,
+    payload: Partial<Pick<MenuItem, 'name' | 'categoryId' | 'price' | 'sortOrder' | 'color'>>,
   ): Observable<MenuItem> {
     return this.http.put<MenuItem>(`/api/menu/items/${id}`, payload).pipe(
       tap(() => this.loadMenu()),
@@ -167,6 +168,7 @@ export class MenuService {
     isDefault: boolean;
     allowsCustomText: boolean;
     sortOrder: number;
+    color?: string;
   }): Observable<ModifierOption> {
     return this.http.post<ModifierOption>('/api/menu/modifier-options', payload).pipe(
       tap(() => this.loadMenu()),
@@ -175,7 +177,7 @@ export class MenuService {
 
   updateModifierOption(
     id: string,
-    payload: Partial<Pick<ModifierOption, 'name' | 'isDefault' | 'allowsCustomText' | 'sortOrder'>>,
+    payload: Partial<Pick<ModifierOption, 'name' | 'isDefault' | 'allowsCustomText' | 'sortOrder' | 'color'>>,
   ): Observable<ModifierOption> {
     return this.http.put<ModifierOption>(`/api/menu/modifier-options/${id}`, payload).pipe(
       tap(() => this.loadMenu()),

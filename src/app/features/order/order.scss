@@ -6,6 +6,15 @@
   font-family: system-ui, -apple-system, sans-serif;
   background: #f9fafb;
   color: #1a1a1a;
+  /*
+   * --bar-h: the full height of the action bar at the bottom.
+   * Used to float the cart preview sheet above the bar so the
+   * cart-peek and Place Order buttons remain tappable.
+   *
+   * Horizontal layout: padding-top(0.75) + button(3.25) + bottom-padding
+   * Vertical layout  : add second button (3.25) + gap (0.625)
+   */
+  --bar-h: calc(4rem + max(0.75rem, env(safe-area-inset-bottom, 0.75rem)));
 }
 
 /* ── Shared header ───────────────────────────────────────────────────────── */
@@ -306,6 +315,36 @@
   line-height: 1;
 }
 
+/*
+ * Category tiles (menu view) — 1 per row on phones so each category
+ * gets a full-width tap target. Item tiles always stay 2 per row.
+ */
+@media (max-width: 430px) {
+  .category-tile-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Responsive: stack action bar buttons vertically on small phones ─────── */
+
+@media (max-width: 430px) {
+  .order-page {
+    /* taller bar: 2 buttons + gap + top/bottom padding */
+    --bar-h: calc(7.875rem + max(0.75rem, env(safe-area-inset-bottom, 0.75rem)));
+  }
+
+  .order-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  /* Cart peek stretches to full width; center its content */
+  .cart-peek-btn {
+    justify-content: center;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    BOTTOM SHEETS — shared infrastructure
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -318,25 +357,48 @@
   animation: fade-in 0.18s ease;
 }
 
+/*
+ * Cart-specific backdrop: stops at the action bar so taps on the
+ * cart-peek and Place Order buttons pass through to the bar.
+ */
+.cart-backdrop {
+  bottom: var(--bar-h);
+}
+
 /* Shared base for both sheets */
 .cart-sheet,
 .name-sheet {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
   background: #ffffff;
-  border-radius: 1.25rem 1.25rem 0 0;
   z-index: 40;
   animation: slide-up 0.22s ease;
-  /* Push content above the home indicator */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+/*
+ * Cart preview: floats ABOVE the action bar so both the cart-peek
+ * button and the Place Order button stay visible and tappable.
+ * All four corners are rounded since it doesn't touch screen edges.
+ */
 .cart-sheet {
+  bottom: var(--bar-h);
+  border-radius: 1.25rem;
   max-height: 75dvh;
   display: flex;
   flex-direction: column;
+  /* No safe-area padding needed — not sitting at the screen edge */
+}
+
+/*
+ * Name prompt: sits flush at the bottom (covers action bar intentionally —
+ * the user is done browsing at this point).
+ */
+.name-sheet {
+  bottom: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+  /* Push content above the home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 @keyframes fade-in {

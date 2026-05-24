@@ -127,6 +127,7 @@ def create_category(req: func.HttpRequest) -> func.HttpResponse:
         "name": name,
         "parentId": body.get("parentId"),
         "sortOrder": int(body.get("sortOrder", 0)),
+        "color": body.get("color") or None,
     }
     get_menu_container().create_item(body=doc)
     logger.info("Created category %s", doc["id"])
@@ -155,6 +156,9 @@ def update_category(req: func.HttpRequest) -> func.HttpResponse:
         existing["sortOrder"] = int(body["sortOrder"])
     if "parentId" in body:
         existing["parentId"] = body["parentId"]
+    if "color" in body:
+        # Empty string → clear any existing color (store None)
+        existing["color"] = body["color"] or None
 
     get_menu_container().upsert_item(body=existing)
     logger.info("Updated category %s", cat_id)
@@ -352,6 +356,7 @@ def create_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
         "isDefault": bool(body.get("isDefault", False)),
         "allowsCustomText": bool(body.get("allowsCustomText", False)),
         "sortOrder": int(body.get("sortOrder", 0)),
+        "color": body.get("color") or None,
     }
     get_menu_container().create_item(body=doc)
     logger.info("Created modifier option %s in group %s", doc["id"], group_id)
@@ -382,6 +387,9 @@ def update_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
         existing["allowsCustomText"] = bool(body["allowsCustomText"])
     if "sortOrder" in body:
         existing["sortOrder"] = int(body["sortOrder"])
+    if "color" in body:
+        # Empty string → clear color (store None)
+        existing["color"] = body["color"] or None
 
     get_menu_container().upsert_item(body=existing)
     logger.info("Updated modifier option %s", opt_id)
@@ -431,6 +439,7 @@ def create_item(req: func.HttpRequest) -> func.HttpResponse:
         "soldOut": False,
         "sortOrder": int(body.get("sortOrder", 0)),
         "modifierGroupIds": [],
+        "color": body.get("color") or None,
     }
     get_menu_container().create_item(body=doc)
     logger.info("Created item %s", doc["id"])
@@ -503,6 +512,9 @@ def update_item(req: func.HttpRequest) -> func.HttpResponse:
             return _error("'price' must be a number.", 400)
     if "sortOrder" in body:
         existing["sortOrder"] = int(body["sortOrder"])
+    if "color" in body:
+        # Empty string → clear any existing color (store None)
+        existing["color"] = body["color"] or None
 
     get_menu_container().upsert_item(body=existing)
     logger.info("Updated item %s", item_id)

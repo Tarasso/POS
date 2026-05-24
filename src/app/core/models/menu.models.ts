@@ -5,6 +5,8 @@ export interface Category {
   name: string;
   parentId: string | null;
   sortOrder: number;
+  /** Optional hex color applied to the order-screen tile (e.g. "#3b82f6"). */
+  color?: string;
 }
 
 /** Mirrors the Cosmos 'item' document shape (partition key: /type). */
@@ -18,6 +20,8 @@ export interface MenuItem {
   sortOrder: number;
   /** IDs of modifier groups attached to this item. Defaults to [] if absent. */
   modifierGroupIds: string[];
+  /** Optional hex color applied to the order-screen tile (e.g. "#3b82f6"). */
+  color?: string;
 }
 
 /** A category with its items already nested (returned by GET /api/menu). */
@@ -36,6 +40,8 @@ export interface ModifierOption {
   /** When selected, reveals an inline text input for custom instructions. */
   allowsCustomText: boolean;
   sortOrder: number;
+  /** Optional hex color shown as the pill background on the KDS (e.g. "#ef4444"). */
+  color?: string;
 }
 
 /** A logical grouping of modifier options (e.g. "Drink Type", "Flavors"). */
