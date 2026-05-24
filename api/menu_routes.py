@@ -5,6 +5,7 @@ Endpoints:
   GET    /api/menu                                   → full menu tree + modifier groups
   POST   /api/menu/categories                        → create category
   PUT    /api/menu/categories/{id}                   → update category
+  DELETE /api/menu/categories/{id}                   → delete category + all its items
   POST   /api/menu/modifier-groups                   → create modifier group
   PATCH  /api/menu/modifier-groups/{id}/items        → bulk assign/unassign items  ← more-specific, registered first
   PUT    /api/menu/modifier-groups/{id}              → update modifier group
@@ -15,6 +16,7 @@ Endpoints:
   POST   /api/menu/items                             → create item
   PATCH  /api/menu/items/{id}/soldout                → toggle sold-out flag           ← more-specific, registered first
   PUT    /api/menu/items/{id}                        → update item
+  DELETE /api/menu/items/{id}                        → delete item
 
 Note on route params: extract via req.route_params, never via function signature.
 """
@@ -157,6 +159,32 @@ def update_category(req: func.HttpRequest) -> func.HttpResponse:
     get_menu_container().upsert_item(body=existing)
     logger.info("Updated category %s", cat_id)
     return _json_response(existing)
+
+
+# ── DELETE /api/menu/categories/{id} ─────────────────────────────────────────
+
+@menu_bp.route(route="menu/categories/{id}", methods=["DELETE"])
+def delete_category(req: func.HttpRequest) -> func.HttpResponse:
+    """Delete a category and all items belonging to it."""
+    cat_id: str = req.route_params.get("id", "")
+    if not _get_item(cat_id, "category"):
+        return _error(f"Category '{cat_id}' not found.", 404)
+
+    container = get_menu_container()
+
+    # Delete all items in this category
+    items = list(container.query_items(
+        query="SELECT * FROM c WHERE c.categoryId = @cat_id",
+        parameters=[{"name": "@cat_id", "value": cat_id}],
+        partition_key="item",
+    ))
+    for item in items:
+        container.delete_item(item=item["id"], partition_key="item")
+
+    # Delete the category itself
+    container.delete_item(item=cat_id, partition_key="category")
+    logger.info("Deleted category %s and %d items", cat_id, len(items))
+    return _json_response({"ok": True})
 
 
 # ── POST /api/menu/modifier-groups ────────────────────────────────────────────
@@ -429,6 +457,20 @@ def toggle_soldout(req: func.HttpRequest) -> func.HttpResponse:
     get_menu_container().upsert_item(body=existing)
     logger.info("Toggled soldOut=%s on item %s", existing["soldOut"], item_id)
     return _json_response(existing)
+
+
+# ── DELETE /api/menu/items/{id} ──────────────────────────────────────────────
+
+@menu_bp.route(route="menu/items/{id}", methods=["DELETE"])
+def delete_item(req: func.HttpRequest) -> func.HttpResponse:
+    """Delete a single menu item."""
+    item_id: str = req.route_params.get("id", "")
+    if not _get_item(item_id, "item"):
+        return _error(f"Item '{item_id}' not found.", 404)
+
+    get_menu_container().delete_item(item=item_id, partition_key="item")
+    logger.info("Deleted item %s", item_id)
+    return _json_response({"ok": True})
 
 
 # ── PUT /api/menu/items/{id} ──────────────────────────────────────────────────

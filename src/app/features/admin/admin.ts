@@ -47,11 +47,23 @@ export class Admin implements OnInit {
   readonly saving    = signal(false);
   readonly saveError = signal<string | null>(null);
 
+  // ── Tab navigation ─────────────────────────────────────────────────────────
+  readonly activeTab = signal<'menu' | 'modifiers'>('menu');
+
+  // ── Item expand / modifier highlight ──────────────────────────────────────
+  readonly expandedItemId    = signal<string | null>(null);
+  readonly highlightedGroupId = signal<string | null>(null);
+
   // ── Category UI state ──────────────────────────────────────────────────────
   readonly showAddCategory    = signal(false);
   readonly editingCategory    = signal<CategoryWithItems | null>(null);
   readonly addingItemToCatId  = signal<string | null>(null);
+  readonly addItemError       = signal<string | null>(null);
   readonly editingItem        = signal<MenuItem | null>(null);
+
+  // ── Drag-and-drop state ────────────────────────────────────────────────────
+  readonly draggingItemId = signal<string | null>(null);
+  readonly dragOverItemId = signal<string | null>(null);
 
   categoryForm:     CategoryForm = this._blankCategoryForm();
   editCategoryForm: CategoryForm = this._blankCategoryForm();
@@ -114,24 +126,55 @@ export class Admin implements OnInit {
     });
   }
 
+  deleteCategory(cat: CategoryWithItems): void {
+    const itemCount = cat.items.length;
+    const warning = itemCount > 0
+      ? ` This will also delete all ${itemCount} item${itemCount === 1 ? '' : 's'} inside it.`
+      : '';
+    if (!confirm(`Delete category "${cat.name}"?${warning}`)) return;
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.menuService.deleteCategory(cat.id).subscribe({
+      next: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Delete failed. Please try again.'); },
+    });
+  }
+
   // ── Item actions ────────────────────────────────────────────────────────────
   openAddItem(categoryId: string): void {
     this.itemForm = this._blankItemForm(categoryId);
+    this.addItemError.set(null);
     this.addingItemToCatId.set(categoryId);
   }
-  cancelAddItem(): void { this.addingItemToCatId.set(null); }
+  cancelAddItem(): void {
+    this.addItemError.set(null);
+    this.addingItemToCatId.set(null);
+  }
   saveNewItem(): void {
-    const { name, categoryId, price, sortOrder } = this.itemForm;
-    if (!name.trim() || price === null) return;
+    const { name, categoryId, price } = this.itemForm;
+    if (!name.trim()) {
+      this.addItemError.set('Item name is required.');
+      return;
+    }
+    if (price === null || price === undefined || isNaN(price as number)) {
+      this.addItemError.set('Price is required.');
+      return;
+    }
+    // Auto-assign sort order: append after last existing item in this category
+    const cat = this.menu()?.categories.find(c => c.id === categoryId);
+    const nextSortOrder = (cat?.items ?? []).reduce((max, i) => Math.max(max, i.sortOrder), -1) + 1;
+
+    this.addItemError.set(null);
     this.saveError.set(null);
     this.saving.set(true);
-    this.menuService.createItem({ name: name.trim(), categoryId, price, sortOrder }).subscribe({
+    this.menuService.createItem({ name: name.trim(), categoryId, price: price as number, sortOrder: nextSortOrder }).subscribe({
       next: () => { this.addingItemToCatId.set(null); this.saving.set(false); },
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
   startEditItem(item: MenuItem): void {
+    this.expandedItemId.set(null); // close expand panel while editing
     this.editItemForm = { name: item.name, categoryId: item.categoryId, price: item.price, sortOrder: item.sortOrder };
     this.editingItem.set(item);
   }
@@ -149,9 +192,83 @@ export class Admin implements OnInit {
     });
   }
 
+  deleteItem(item: MenuItem): void {
+    if (!confirm(`Delete item "${item.name}"?`)) return;
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.menuService.deleteItem(item.id).subscribe({
+      next: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Delete failed. Please try again.'); },
+    });
+  }
+
   toggleSoldOut(item: MenuItem): void {
     this.menuService.toggleSoldOut(item.id, !item.soldOut).subscribe();
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ITEM DRAG-AND-DROP
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  onDragStart(item: MenuItem, event: DragEvent): void {
+    this.draggingItemId.set(item.id);
+    event.dataTransfer!.effectAllowed = 'move';
+    event.dataTransfer!.setData('text/plain', item.id); // required for Firefox
+  }
+
+  onDragOver(item: MenuItem, event: DragEvent): void {
+    event.preventDefault();
+    event.dataTransfer!.dropEffect = 'move';
+    if (this.dragOverItemId() !== item.id) {
+      this.dragOverItemId.set(item.id);
+    }
+  }
+
+  onDragLeave(item: MenuItem): void {
+    if (this.dragOverItemId() === item.id) {
+      this.dragOverItemId.set(null);
+    }
+  }
+
+  onDrop(targetItem: MenuItem, cat: CategoryWithItems, event: DragEvent): void {
+    event.preventDefault();
+    const srcId = this.draggingItemId();
+    this.draggingItemId.set(null);
+    this.dragOverItemId.set(null);
+
+    if (!srcId || srcId === targetItem.id) return;
+    const srcIndex = cat.items.findIndex(i => i.id === srcId);
+    const tgtIndex = cat.items.findIndex(i => i.id === targetItem.id);
+    if (srcIndex === -1 || tgtIndex === -1) return;
+
+    // Build reordered list
+    const reordered = [...cat.items];
+    const [moved] = reordered.splice(srcIndex, 1);
+    reordered.splice(tgtIndex, 0, moved);
+
+    // Optimistic update → instant visual feedback
+    this.menuService.updateMenuItemOrder(cat.id, reordered);
+
+    // Persist new sort orders (0, 1, 2 …)
+    const updates = reordered.map((item, idx) => ({ id: item.id, sortOrder: idx }));
+    this.saving.set(true);
+    this.menuService.reorderItems(updates).subscribe({
+      next: () => this.saving.set(false),
+      error: () => {
+        this.saving.set(false);
+        this.saveError.set('Reorder failed. Please try again.');
+        this.menuService.loadMenu(); // revert to server state
+      },
+    });
+  }
+
+  onDragEnd(): void {
+    this.draggingItemId.set(null);
+    this.dragOverItemId.set(null);
+  }
+
+  isDragging(itemId: string): boolean { return this.draggingItemId() === itemId; }
+  isDragOver(itemId: string): boolean  { return this.dragOverItemId()  === itemId; }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MODIFIER GROUP ACTIONS
@@ -337,6 +454,40 @@ export class Admin implements OnInit {
       error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
+
+  // ── Tab / expand / highlight helpers ──────────────────────────────────────
+
+  setTab(tab: 'menu' | 'modifiers'): void { this.activeTab.set(tab); }
+
+  toggleItemExpand(itemId: string): void {
+    this.expandedItemId.set(this.expandedItemId() === itemId ? null : itemId);
+  }
+  isItemExpanded(itemId: string): boolean { return this.expandedItemId() === itemId; }
+
+  /** Returns the full ModifierGroupWithOptions objects assigned to an item. */
+  getItemModifierGroups(item: MenuItem): ModifierGroupWithOptions[] {
+    const ids = item.modifierGroupIds ?? [];
+    return (this.menu()?.modifierGroups ?? []).filter(g => ids.includes(g.id));
+  }
+
+  /** Remove a modifier group from an item (no confirm — it's reversible via Assign). */
+  removeModifierFromItem(item: MenuItem, groupId: string): void {
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.menuService.assignModifierGroup(groupId, { add: [], remove: [item.id] }).subscribe({
+      next: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Remove failed. Please try again.'); },
+    });
+  }
+
+  /** Switch to the Modifiers tab and briefly highlight the target group. */
+  goToGroup(groupId: string): void {
+    this.activeTab.set('modifiers');
+    this.highlightedGroupId.set(groupId);
+    setTimeout(() => this.highlightedGroupId.set(null), 2500);
+  }
+
+  isGroupHighlighted(groupId: string): boolean { return this.highlightedGroupId() === groupId; }
 
   // ── Template predicate helpers ─────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, OnInit, inject, signal, computed, ViewChild, ElementRef } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MenuService } from '../../core/services/menu.service';
@@ -6,7 +6,7 @@ import { OrderService } from '../../core/services/order.service';
 import { CategoryWithItems, MenuItem, ModifierGroupWithOptions } from '../../core/models/menu.models';
 import { AppliedModifier, CartItem } from '../../core/models/order.models';
 
-type View = 'menu' | 'category' | 'modifiers' | 'cart';
+type View = 'menu' | 'category' | 'modifiers';
 
 @Component({
   selector: 'app-order',
@@ -41,6 +41,13 @@ export class Order implements OnInit {
   readonly currentView = signal<View>('menu');
   readonly selectedCategory = signal<CategoryWithItems | null>(null);
 
+  // ── Sheet state ───────────────────────────────────────────────────────────
+  readonly showCartPreview = signal(false);
+  readonly showNamePrompt = signal(false);
+
+  /** Template ref for the name input so we can programmatically focus it. */
+  @ViewChild('nameInput') private nameInputRef?: ElementRef<HTMLInputElement>;
+
   // ── Modifier selection state ──────────────────────────────────────────────
   readonly pendingItem = signal<MenuItem | null>(null);
   /** groupId → array of selected optionIds */
@@ -73,8 +80,6 @@ export class Order implements OnInit {
   }
 
   // ── Top-level navigation ──────────────────────────────────────────────────
-  showCart(): void { this.currentView.set('cart'); }
-
   showMenu(): void {
     this.selectedCategory.set(null);
     this.currentView.set('menu');
@@ -100,7 +105,6 @@ export class Order implements OnInit {
 
   // ── Modifier view ─────────────────────────────────────────────────────────
   private startModify(item: MenuItem, groups: ModifierGroupWithOptions[]): void {
-    // Pre-select any defaults
     const initial: Record<string, string[]> = {};
     for (const group of groups) {
       initial[group.id] = group.options.filter(o => o.isDefault).map(o => o.id);
@@ -127,11 +131,9 @@ export class Order implements OnInit {
         return { ...current, [groupId]: existing.filter(id => id !== optionId) };
       }
       if (maxSelections === 1) {
-        // Radio behaviour: replace selection
         return { ...current, [groupId]: [optionId] };
       }
       if (maxSelections !== null && existing.length >= maxSelections) {
-        // At cap — ignore tap
         return current;
       }
       return { ...current, [groupId]: [...existing, optionId] };
@@ -189,13 +191,39 @@ export class Order implements OnInit {
   decrement(cartLineId: string): void { this.orderService.decrementItem(cartLineId); }
   remove(cartLineId: string): void    { this.orderService.removeItem(cartLineId); }
 
-  submitOrder(): void { this.orderService.submitOrder(); }
+  // ── Cart preview sheet ────────────────────────────────────────────────────
+  openCartPreview(): void  { this.showCartPreview.set(true); }
+  closeCartPreview(): void { this.showCartPreview.set(false); }
+
+  // ── Name prompt sheet ─────────────────────────────────────────────────────
+  openNamePrompt(): void {
+    this.showCartPreview.set(false); // close cart sheet if open
+    this.showNamePrompt.set(true);
+    // Focus the input after Angular renders the sheet; a 0 ms timeout keeps us
+    // within the browser's "user gesture" window so iOS triggers the keyboard.
+    setTimeout(() => this.nameInputRef?.nativeElement.focus(), 0);
+  }
+
+  closeNamePrompt(): void { this.showNamePrompt.set(false); }
+
+  /**
+   * Called by the Place Order button inside the name prompt AND by the Enter
+   * key on the name input.  Keeps the sheet open while the request is in-flight
+   * so the user sees the "Placing Order…" state; the success overlay covers
+   * everything on success.
+   */
+  submitFromNamePrompt(): void {
+    if (!this.canSubmit()) return;
+    this.orderService.submitOrder();
+  }
 
   retryLoadMenu(): void { this.menuService.loadMenu(); }
 
   startNewOrder(): void {
     this.orderService.resetAfterConfirmation();
     this.currentView.set('menu');
+    this.showCartPreview.set(false);
+    this.showNamePrompt.set(false);
   }
 
   // ── Template helpers ──────────────────────────────────────────────────────

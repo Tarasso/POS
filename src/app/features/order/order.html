@@ -51,14 +51,6 @@
         }
       }
 
-      @if (cartCount() > 0) {
-        <div class="cart-bar" (click)="showCart()">
-          <span class="cart-bar-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
-          <span class="cart-bar-label">View Cart</span>
-          <span class="cart-bar-total">{{ cartTotal() | currency }}</span>
-        </div>
-      }
-
     </div>
   }
 
@@ -89,14 +81,6 @@
             </button>
           }
         </div>
-
-        @if (cartCount() > 0) {
-          <div class="cart-bar" (click)="showCart()">
-            <span class="cart-bar-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
-            <span class="cart-bar-label">View Cart</span>
-            <span class="cart-bar-total">{{ cartTotal() | currency }}</span>
-          </div>
-        }
 
       </div>
     }
@@ -160,39 +144,52 @@
           </button>
         </div>
 
-        @if (cartCount() > 0) {
-          <div class="cart-bar cart-bar-above-footer" (click)="showCart()">
-            <span class="cart-bar-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
-            <span class="cart-bar-label">View Cart</span>
-            <span class="cart-bar-total">{{ cartTotal() | currency }}</span>
-          </div>
-        }
-
       </div>
     }
   }
 
   <!-- ═══════════════════════════════════════════════════════════════════════
-       VIEW: CART
+       PERSISTENT ORDER ACTION BAR
+       Shown on menu + category views whenever the cart has items.
+       Left  → opens cart preview sheet (view / edit items)
+       Right → opens name prompt sheet (enter name + place order)
   ═══════════════════════════════════════════════════════════════════════════ -->
-  @if (currentView() === 'cart') {
-    <div class="cart-view">
+  @if (cartCount() > 0 && currentView() !== 'modifiers') {
+    <div class="order-action-bar">
 
-      <header class="view-header">
-        <button class="btn-back" (click)="showMenu()">‹ Menu</button>
-        <h1 class="view-title">Cart</h1>
-      </header>
+      <!-- Cart preview trigger -->
+      <button class="cart-peek-btn" (click)="openCartPreview()" aria-label="View order">
+        <span class="cart-peek-badge">{{ cartCount() }}</span>
+        <span class="cart-peek-label">
+          {{ cartCount() === 1 ? '1 item' : cartCount() + ' items' }}
+        </span>
+        <span class="cart-peek-total">{{ cartTotal() | currency }}</span>
+      </button>
 
-      @if (submitError()) {
-        <div class="error-banner">{{ submitError() }}</div>
-      }
+      <!-- Place order trigger -->
+      <button class="place-order-btn" (click)="openNamePrompt()">
+        Place Order <span class="place-order-arrow">→</span>
+      </button>
 
-      @if (cart().length === 0) {
-        <p class="state-msg">Your cart is empty.</p>
-      }
+    </div>
+  }
 
-      @if (cart().length > 0) {
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CART PREVIEW SHEET
+       Bottom sheet — slides up to show the current cart with qty editing.
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (showCartPreview()) {
+    <div class="sheet-backdrop" (click)="closeCartPreview()"></div>
+    <div class="cart-sheet" role="dialog" aria-label="Your order">
 
+      <div class="sheet-drag-handle"></div>
+
+      <div class="sheet-header">
+        <h3 class="sheet-title">Your Order</h3>
+        <button class="sheet-close-btn" (click)="closeCartPreview()" aria-label="Close">✕</button>
+      </div>
+
+      <div class="sheet-body">
         <ul class="cart-list">
           @for (item of cart(); track item.cartLineId) {
             <li class="cart-row">
@@ -217,31 +214,57 @@
           <span class="cart-total-label">Total</span>
           <span class="cart-total-amount">{{ cartTotal() | currency }}</span>
         </div>
+      </div>
 
-        <div class="customer-name-field">
-          <label class="field-label" for="customerName">Customer Name</label>
-          <input
-            id="customerName"
-            class="input"
-            type="text"
-            placeholder="Enter name…"
-            [(ngModel)]="customerName"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="words"
-            spellcheck="false"
-          />
-        </div>
+    </div>
+  }
 
-        <button
-          class="btn btn-primary submit-btn"
-          [disabled]="!canSubmit()"
-          (click)="submitOrder()"
-        >
-          @if (submitting()) { Placing Order… } @else { Place Order }
-        </button>
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       NAME PROMPT SHEET
+       Bottom sheet — name input auto-focuses to trigger the mobile keyboard.
+       Enter key or the Place Order button submits.
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (showNamePrompt()) {
+    <div class="sheet-backdrop" (click)="closeNamePrompt()"></div>
+    <div class="name-sheet" role="dialog" aria-label="Place order">
 
+      <div class="sheet-drag-handle"></div>
+
+      <div class="sheet-header">
+        <h3 class="sheet-title">What's the name?</h3>
+        <button class="sheet-close-btn sheet-cancel-btn" (click)="closeNamePrompt()">Cancel</button>
+      </div>
+
+      @if (submitError()) {
+        <div class="error-banner name-sheet-error">{{ submitError() }}</div>
       }
+
+      <div class="name-sheet-body">
+        <input
+          #nameInput
+          class="name-input"
+          type="text"
+          placeholder="Enter name…"
+          [(ngModel)]="customerName"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="words"
+          spellcheck="false"
+          enterkeyhint="done"
+          (keydown.enter)="submitFromNamePrompt()"
+        />
+        <button
+          class="name-submit-btn"
+          [disabled]="!canSubmit()"
+          (click)="submitFromNamePrompt()"
+        >
+          @if (submitting()) {
+            Placing Order…
+          } @else {
+            Place Order — {{ cartTotal() | currency }}
+          }
+        </button>
+      </div>
 
     </div>
   }

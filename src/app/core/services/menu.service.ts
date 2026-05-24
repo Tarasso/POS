@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { Observable, forkJoin, tap } from 'rxjs';
+import { map } from 'rxjs/operators';
 import {
   Category,
   CategoryWithItems,
@@ -82,6 +83,42 @@ export class MenuService {
     return this.http
       .patch<MenuItem>(`/api/menu/items/${id}/soldout`, { soldOut })
       .pipe(tap(() => this.loadMenu()));
+  }
+
+  deleteItem(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/menu/items/${id}`).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  deleteCategory(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/menu/categories/${id}`).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  /** Optimistically reorder items in the local signal (instant visual feedback). */
+  updateMenuItemOrder(catId: string, reordered: MenuItem[]): void {
+    this.menu.update(tree => {
+      if (!tree) return tree;
+      return {
+        ...tree,
+        categories: tree.categories.map(cat =>
+          cat.id === catId ? { ...cat, items: reordered } : cat,
+        ),
+      };
+    });
+  }
+
+  /** Persist new sort orders for a list of items, then reload. */
+  reorderItems(updates: { id: string; sortOrder: number }[]): Observable<void> {
+    const calls = updates.map(u =>
+      this.http.put<MenuItem>(`/api/menu/items/${u.id}`, { sortOrder: u.sortOrder }),
+    );
+    return forkJoin(calls).pipe(
+      map(() => undefined as void),
+      tap(() => this.loadMenu()),
+    );
   }
 
   // ── Modifier group mutations ────────────────────────────────────────────

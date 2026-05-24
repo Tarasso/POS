@@ -122,9 +122,11 @@ Defaults to `[]` — backward-compatible with seeded items that predate this fie
 GET    /api/menu                                → full menu tree + modifier groups
 POST   /api/menu/categories                     → create category
 PUT    /api/menu/categories/{id}                → update category
+DELETE /api/menu/categories/{id}                → delete category + all its items
 POST   /api/menu/items                          → create item
 PUT    /api/menu/items/{id}                     → update item
 PATCH  /api/menu/items/{id}/soldout             → toggle sold out
+DELETE /api/menu/items/{id}                     → delete item
 
 POST   /api/menu/modifier-groups                → create modifier group
 PUT    /api/menu/modifier-groups/{id}           → update modifier group
@@ -135,6 +137,7 @@ PUT    /api/menu/modifier-options/{id}          → update modifier option
 DELETE /api/menu/modifier-options/{id}          → delete modifier option
 
 GET    /api/orders?status=open                  → list orders by status
+GET    /api/orders?status=completed             → list completed orders (newest-first)
 POST   /api/orders                              → create order
 PATCH  /api/orders/{id}/complete                → mark completed (create-before-delete across partitions + SignalR broadcast)
 
@@ -268,13 +271,14 @@ Angular CLI 21 drops `.component` from all generated filenames. This affects eve
 - **`src/app/core/services/menu.service.ts`** — updated with modifier CRUD and `assignModifierGroup` methods
 
 **Order UI** (`src/app/features/order/`)
-- 4-view flow: `menu` (category tiles) → `category` (item tiles) → `modifiers` (pill buttons per group) → `cart`
+- 3-view flow: `menu` (category tiles) → `category` (item tiles) → `modifiers` (pill buttons per group)
 - Items without modifier groups add directly to cart; items with groups open the modifier view
 - Modifier groups enforce `minSelections` (Add to Cart disabled until met); `maxSelections: 1` = radio behaviour; `null` = unlimited multi-select
 - Default options pre-selected on open; `allowsCustomText` options reveal an inline text input
 - Cart lines keyed by `cartLineId` — same item with different modifiers stays separate
 - Cart shows a modifier summary line per item (e.g. *Iced · Oat Milk · Vanilla*)
 - Success overlay on order placed; resets to menu view
+- **Note**: the original `cart` view was replaced by bottom sheets in a post-Phase-5 redesign — see Post-Phase 5 Improvements
 
 **Admin UI** (`src/app/features/admin/`)
 - New **Modifier Groups** section below category list
@@ -444,6 +448,69 @@ Authentication is enforced at the **Azure CDN layer** — unauthenticated reques
 20. **`env(safe-area-inset-top)` with `padding` shorthand breaks the nav** — the `.app-nav` already used `padding: 0 1rem` shorthand. Adding `padding-top: env(...)` after the shorthand would be overridden. Fix: use `padding-left`/`padding-right`/`padding-top` longhand properties separately.
 21. **`SwUpdate` is `null` in dev mode** — `swUpdate.isEnabled` returns `false` when the service worker is not registered (local dev). Always guard SW code with `if (swUpdate.isEnabled)` to avoid runtime errors.
 22. **`withAutomaticReconnect()` exhausts its retry budget after ~2 minutes of failure** — after that the hub enters a permanently `Disconnected` state and `onclose` fires. The manual Reconnect button handles this case by calling `disconnect()` (nulls `hubConnection`) then `connect()` to start a fresh connection.
+
+## Post-Phase 5 Improvements
+
+### Admin — delete + reorder
+
+**API (`api/menu_routes.py`)**
+- `DELETE /api/menu/categories/{id}` — deletes the category doc and every item whose `categoryId` matches (cascade). Returns `{"ok": true}`.
+- `DELETE /api/menu/items/{id}` — deletes a single item. Returns `{"ok": true}`.
+
+**Service (`src/app/core/services/menu.service.ts`)**
+- `deleteItem(id)` — HTTP DELETE, then `loadMenu()` to refresh the signal.
+- `deleteCategory(id)` — HTTP DELETE, then `loadMenu()`.
+- `updateMenuItemOrder(catId, reorderedItems)` — optimistic local signal update for instant drag feedback.
+- `reorderItems(updates[])` — fires parallel PUT calls via `forkJoin`, then `loadMenu()`.
+
+**Admin UI (`src/app/features/admin/`)**
+- Tab navigation: **Menu** tab (categories + items) and **Modifiers** tab (groups + options). `activeTab` signal switches between them.
+- Delete category button on each category header — `confirm()` dialog warns about cascaded item deletion.
+- Delete item button — `confirm()` dialog per item.
+- Drag-and-drop item reordering within a category: HTML5 `draggable`, `dragstart`/`dragover`/`drop`/`dragend` handlers. Visual highlight on drag target. On drop, calls `reorderItems()` which PUTs new `sortOrder` values in parallel.
+- Inline `addItemError` signal shows validation errors (name required, price required) without the global `saveError` banner.
+- Auto-assigned `sortOrder` on new items (appended after last item in the category).
+
+### KDS — modifier pills, double-tap, completed history
+
+**KDS service (`src/app/core/services/kds.service.ts`)**
+- New signals: `completedOrders`, `loadingCompleted`, `completedError`.
+- `loadCompletedOrders()` — fetches `GET /api/orders?status=completed`, sorts newest-first by `completedAt`.
+
+**KDS component (`src/app/features/kds/`)**
+- **Modifier pills**: modifiers rendered as blue pill badges (`background: #dbeafe; color: #1e40af`) in a flex-wrap row instead of small gray list items — more legible at a glance.
+- **Double-tap to complete**: the Done button is removed. Cards have `touch-action: manipulation` (eliminates iOS 300 ms double-tap delay) and listen to `(dblclick)`. A `(touchstart)` handler sets a `firstTapped` signal so the card's hint text changes to "Tap again to complete!" for 450 ms, then reverts to "Double-tap to complete". A `firstTapTimers` map holds cleanup `setTimeout` handles cleared in `ngOnDestroy`.
+- **Completed history panel**: a fixed FAB button (bottom-right, dark slate) labelled "✓ History". Tapping opens a slide-in panel from the right showing completed orders (customer name, date/time, items with modifier pills, total). Panel has a ↻ Refresh button. `DatePipe` imported in the component for `| date:'M/d · h:mm a'` formatting.
+
+### Order flow — two-button action bar + bottom sheets
+
+The `cart` view type is removed. Cart editing and order submission are now driven by two persistent bottom-fixed buttons and two bottom sheets.
+
+**Action bar** (shown on `menu` and `category` views when `cartCount() > 0`; hidden on `modifiers` view):
+- **Left — cart preview button** (`.cart-peek-btn`): shows a blue count badge + item label + total. Opens the cart preview sheet.
+- **Right — Place Order button** (`.place-order-btn`, green): opens the name prompt sheet. Takes remaining width.
+- `padding-bottom: max(0.75rem, env(safe-area-inset-bottom))` so it sits above the iPhone home indicator.
+
+**Cart preview sheet** (`.cart-sheet`):
+- Bottom sheet, slides up, max-height 75dvh.
+- Full item list with `+/−` qty controls and ✕ remove per line, plus a total row.
+- Backdrop tap or ✕ dismisses.
+
+**Name prompt sheet** (`.name-sheet`):
+- Bottom sheet. Opening it calls `setTimeout(() => nameInputRef.focus(), 0)` — fires within the browser's user-gesture window so iOS triggers the soft keyboard.
+- Single text input with `enterkeyhint="done"` and `(keydown.enter)="submitFromNamePrompt()"` — user can submit without touching the button.
+- Green **Place Order — $X.XX** button shows the running total and disables while `canSubmit()` is false.
+- Submit error shown inline inside the sheet.
+- Sheet stays open while the HTTP request is in-flight; success overlay covers everything on success. `startNewOrder()` closes both sheets and resets all state.
+
+**Angular budget** (`angular.json`): `anyComponentStyle` budget raised from `4kB warning / 8kB error` to `8kB warning / 16kB error` to accommodate the larger component SCSS files.
+
+### Post-Phase 5 Gotchas
+
+23. **iOS soft keyboard requires `focus()` within a user-gesture tick** — call `setTimeout(() => input.focus(), 0)` inside the click handler that shows the input. The 0 ms delay lets Angular render the sheet while staying within the browser's gesture-trust window. Calling `.focus()` in a later macrotask may be silently ignored by iOS Safari.
+24. **`touch-action: manipulation` enables `dblclick` on touch screens** — this CSS property disables the browser's double-tap-to-zoom gesture, which also removes the 300 ms click delay. With it, iOS/Android fires `dblclick` immediately on two quick taps, identical to a mouse double-click. Set it on any element that needs `(dblclick)` to work at full speed on touch devices.
+25. **HTML5 drag-and-drop does not fire on iOS Safari** — the drag-and-drop item reorder in the admin UI uses the HTML5 Drag-and-Drop API, which is not supported on iOS/iPadOS without a polyfill. This is acceptable since the admin UI is used on desktop/Mac. If mobile admin editing is ever needed, replace with pointer-event-based drag logic.
+26. **`forkJoin` with an empty array resolves immediately** — `forkJoin([])` completes synchronously with `[]`. This is fine for the reorder path but means the `.tap(() => loadMenu())` still fires even when no reorder calls were made.
 
 ## Not in Scope
 - Tax, payments, multi-tenant, push notifications, order editing

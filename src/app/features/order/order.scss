@@ -55,7 +55,8 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
-  padding: 0.875rem 0.875rem 6rem;
+  /* Bottom padding accounts for the action bar height + safe area */
+  padding: 0.875rem 0.875rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 .tile {
@@ -97,61 +98,13 @@
   letter-spacing: 0.05em;
 }
 
-/* ── Sticky cart bar ─────────────────────────────────────────────────────── */
-
-.cart-bar {
-  position: fixed;
-  bottom: 1rem;
-  left: 1rem;
-  right: 1rem;
-  background: #2563eb;
-  color: #fff;
-  border-radius: 0.75rem;
-  padding: 0.875rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
-  z-index: 20;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-
-  &:active { opacity: 0.9; }
-}
-
-/* On the modifiers view the footer takes bottom space; shift cart bar up */
-.cart-bar-above-footer {
-  bottom: 5rem;
-}
-
-.cart-bar-count {
-  font-size: 0.875rem;
-  font-weight: 600;
-  background: rgba(255, 255, 255, 0.25);
-  border-radius: 0.375rem;
-  padding: 0.125rem 0.5rem;
-}
-
-.cart-bar-label {
-  flex: 1;
-  font-weight: 600;
-  font-size: 1rem;
-  text-align: center;
-}
-
-.cart-bar-total {
-  font-weight: 700;
-  font-size: 1rem;
-}
-
 /* ── Modifiers view ──────────────────────────────────────────────────────── */
 
 .modifiers-view {
   display: flex;
   flex-direction: column;
   min-height: 100dvh;
-  padding-bottom: 5rem; /* space for the sticky footer */
+  padding-bottom: 5rem; /* space for the sticky Add to Cart footer */
 }
 
 .modifiers-scroll {
@@ -202,7 +155,7 @@
   padding: 0.5rem 1rem;
   background: #fff;
   border: 1.5px solid #d1d5db;
-  border-radius: 2rem; /* pill shape */
+  border-radius: 2rem;
   font-size: 0.9375rem;
   font-weight: 500;
   color: #374151;
@@ -222,7 +175,7 @@
   }
 }
 
-/* ── Custom text input (shown inside a group when allowsCustomText option is selected) */
+/* ── Custom text input ───────────────────────────────────────────────────── */
 
 .custom-text-wrapper {
   width: 100%;
@@ -246,7 +199,7 @@
   }
 }
 
-/* ── Modifiers sticky footer ─────────────────────────────────────────────── */
+/* ── Modifiers sticky footer (Add to Cart) ───────────────────────────────── */
 
 .modifiers-footer {
   position: fixed;
@@ -259,19 +212,205 @@
   z-index: 15;
 }
 
-/* ── Cart view ───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ORDER ACTION BAR — two fixed buttons at the bottom of menu + category views
+   ═══════════════════════════════════════════════════════════════════════════ */
 
-.cart-view {
-  padding-bottom: 2rem;
+.order-action-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  /* Ensure the bar sits above the iPhone home indicator */
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.07);
+  z-index: 20;
 }
+
+/* Left button — cart peek (shows count + total, opens preview sheet) */
+.cart-peek-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 3.25rem;
+  padding: 0 0.875rem;
+  background: #f3f4f6;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 0.75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+
+  &:active { background: #e5e7eb; }
+}
+
+.cart-peek-badge {
+  background: #2563eb;
+  color: #fff;
+  border-radius: 9999px;
+  min-width: 1.625rem;
+  height: 1.625rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.cart-peek-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.cart-peek-total {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+/* Right button — place order (opens name prompt) */
+.place-order-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 3.25rem;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+
+  &:active { background: #15803d; }
+}
+
+.place-order-arrow {
+  font-size: 1.125rem;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOTTOM SHEETS — shared infrastructure
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 30;
+  animation: fade-in 0.18s ease;
+}
+
+/* Shared base for both sheets */
+.cart-sheet,
+.name-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #ffffff;
+  border-radius: 1.25rem 1.25rem 0 0;
+  z-index: 40;
+  animation: slide-up 0.22s ease;
+  /* Push content above the home indicator */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.cart-sheet {
+  max-height: 75dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* iOS-style drag handle at the top of each sheet */
+.sheet-drag-handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  background: #d1d5db;
+  border-radius: 9999px;
+  margin: 0.625rem auto 0;
+  flex-shrink: 0;
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem 0.75rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+  flex-shrink: 0;
+}
+
+.sheet-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.sheet-close-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1.0625rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active { color: #374151; }
+}
+
+.sheet-cancel-btn {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #2563eb;
+
+  &:active { color: #1d4ed8; }
+}
+
+/* ── Cart preview sheet body ─────────────────────────────────────────────── */
+
+.sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Cart item list (shared with cart sheet) ─────────────────────────────── */
 
 .cart-list {
   list-style: none;
-  margin: 0.75rem 0 0;
+  margin: 0;
   padding: 0;
   background: #fff;
-  border-top: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb;
 }
 
 .cart-row {
@@ -368,7 +507,7 @@
 .cart-total-row {
   display: flex;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: 0.875rem 1rem;
   font-weight: 700;
   font-size: 1rem;
   border-top: 2px solid #e5e7eb;
@@ -377,32 +516,56 @@
 .cart-total-label  { color: #374151; }
 .cart-total-amount { color: #111827; }
 
-/* ── Customer name input ─────────────────────────────────────────────────── */
+/* ── Name prompt sheet body ──────────────────────────────────────────────── */
 
-.customer-name-field { padding: 0.75rem 1rem; }
-
-.field-label {
-  display: block;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #374151;
-  margin-bottom: 0.375rem;
+.name-sheet-error {
+  margin: 0.5rem 1rem 0;
 }
 
-.input {
+.name-sheet-body {
+  padding: 1rem 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.name-input {
   width: 100%;
-  height: 3rem;
-  padding: 0 0.875rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  font-size: 1rem;
+  height: 3.25rem;
+  padding: 0 1rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 0.75rem;
+  font-size: 1.125rem;
   outline: none;
   box-sizing: border-box;
   -webkit-appearance: none;
+  background: #fafafa;
 
   &:focus {
     border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  }
+}
+
+.name-submit-btn {
+  width: 100%;
+  height: 3.5rem;
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.75rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s, opacity 0.1s;
+
+  &:active:not(:disabled) { background: #15803d; }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 }
 
@@ -435,11 +598,6 @@
 .btn-full {
   width: 100%;
   display: flex;
-}
-
-.submit-btn {
-  width: calc(100% - 2rem);
-  margin: 0.5rem 1rem 0;
 }
 
 /* ── Success overlay ─────────────────────────────────────────────────────── */
@@ -512,9 +670,7 @@
   flex-shrink: 0;
   -webkit-tap-highlight-color: transparent;
 
-  &:active {
-    opacity: 0.7;
-  }
+  &:active { opacity: 0.7; }
 }
 
 .state-msg {

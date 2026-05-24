@@ -103,6 +103,33 @@ export class KdsService {
     this.connectionState.set('disconnected');
   }
 
+  // ── Completed orders history ───────────────────────────────────────────────
+
+  /** Completed orders, newest-first. Loaded on demand when the history panel is opened. */
+  readonly completedOrders = signal<Order[]>([]);
+  readonly loadingCompleted = signal(false);
+  readonly completedError = signal<string | null>(null);
+
+  /** Fetch completed orders sorted newest-first. */
+  loadCompletedOrders(): void {
+    this.loadingCompleted.set(true);
+    this.completedError.set(null);
+    this.http.get<{ orders: Order[] }>('/api/orders?status=completed').subscribe({
+      next: (data) => {
+        const sorted = [...data.orders].sort((a, b) =>
+          (b.completedAt ?? b.createdAt).localeCompare(a.completedAt ?? a.createdAt)
+        );
+        this.completedOrders.set(sorted);
+        this.loadingCompleted.set(false);
+      },
+      error: (err) => {
+        console.error('KdsService: failed to load completed orders', err);
+        this.completedError.set('Failed to load completed orders.');
+        this.loadingCompleted.set(false);
+      },
+    });
+  }
+
   // ── Complete action ────────────────────────────────────────────────────────
 
   /**

@@ -1,10 +1,27 @@
 <div class="admin">
   <header class="admin-header">
     <h1>Menu Management</h1>
-    <button class="btn btn-primary" (click)="openAddCategory()" [disabled]="saving()">
-      + Category
-    </button>
+    @if (activeTab() === 'menu') {
+      <button class="btn btn-primary" (click)="openAddCategory()" [disabled]="saving()">
+        + Category
+      </button>
+    }
+    @if (activeTab() === 'modifiers') {
+      <button class="btn btn-primary" (click)="openAddGroup()" [disabled]="saving()">
+        + Group
+      </button>
+    }
   </header>
+
+  <!-- ── Tab bar ──────────────────────────────────────────────────────────── -->
+  <nav class="admin-tabs">
+    <button class="tab-btn" [class.active]="activeTab() === 'menu'" (click)="setTab('menu')">
+      Menu Items
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'modifiers'" (click)="setTab('modifiers')">
+      Modifier Groups
+    </button>
+  </nav>
 
   @if (error()) {
     <div class="error-banner">{{ error() }}</div>
@@ -16,335 +33,400 @@
     <p class="loading">Loading menu…</p>
   }
 
-  <!-- ══════════════════════════════════════════════════════════════════════
-       ADD CATEGORY FORM
-  ══════════════════════════════════════════════════════════════════════════ -->
-  @if (showAddCategory()) {
-    <div class="inline-form card">
-      <h3>New Category</h3>
-      <div class="form-row">
-        <input class="input" type="text" placeholder="Category name"
-          [(ngModel)]="categoryForm.name" (keyup.enter)="saveNewCategory()" />
-        <input class="input input-short" type="number" placeholder="Order" min="0"
-          [(ngModel)]="categoryForm.sortOrder" />
-      </div>
-      <div class="form-actions">
-        <button class="btn btn-primary" (click)="saveNewCategory()" [disabled]="saving()">Save</button>
-        <button class="btn btn-ghost"   (click)="cancelAddCategory()">Cancel</button>
-      </div>
-    </div>
-  }
-
-  <!-- ══════════════════════════════════════════════════════════════════════
-       CATEGORY + ITEM LIST
-  ══════════════════════════════════════════════════════════════════════════ -->
   @if (menu(); as tree) {
-    @for (cat of tree.categories; track cat.id) {
-      <section class="category card">
 
-        @if (isEditingCategory(cat)) {
-          <div class="inline-form">
-            <h3>Edit Category</h3>
-            <div class="form-row">
+    <!-- ══════════════════════════════════════════════════════════════════════
+         MENU ITEMS TAB
+    ══════════════════════════════════════════════════════════════════════════ -->
+    @if (activeTab() === 'menu') {
+
+      @if (showAddCategory()) {
+        <div class="inline-form card">
+          <h3>New Category</h3>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="field-label">Name *</label>
               <input class="input" type="text" placeholder="Category name"
-                [(ngModel)]="editCategoryForm.name" (keyup.enter)="saveEditCategory()" />
-              <input class="input input-short" type="number" placeholder="Order" min="0"
-                [(ngModel)]="editCategoryForm.sortOrder" />
+                [(ngModel)]="categoryForm.name" (keyup.enter)="saveNewCategory()" />
             </div>
-            <div class="form-actions">
-              <button class="btn btn-primary" (click)="saveEditCategory()" [disabled]="saving()">Save</button>
-              <button class="btn btn-ghost"   (click)="cancelEditCategory()">Cancel</button>
+            <div class="form-field form-field-short">
+              <label class="field-label">Sort order</label>
+              <input class="input" type="number" placeholder="0" min="0"
+                [(ngModel)]="categoryForm.sortOrder" />
             </div>
           </div>
-        } @else {
-          <div class="category-header">
-            <span class="category-name">{{ cat.name }}</span>
-            <span class="sort-badge">#{{ cat.sortOrder }}</span>
-            <button class="btn btn-ghost btn-sm" (click)="startEditCategory(cat)">Edit</button>
+          <div class="form-actions">
+            <button class="btn btn-primary" (click)="saveNewCategory()" [disabled]="saving()">Save</button>
+            <button class="btn btn-ghost"   (click)="cancelAddCategory()">Cancel</button>
           </div>
-        }
+        </div>
+      }
 
-        <ul class="item-list">
-          @for (item of cat.items; track item.id) {
-            @if (isEditingItem(item)) {
-              <li class="inline-form item-edit-form">
-                <div class="form-row">
-                  <input class="input" type="text" placeholder="Item name"
-                    [(ngModel)]="editItemForm.name" (keyup.enter)="saveEditItem()" />
-                  <input class="input input-short" type="number" placeholder="Price" min="0" step="0.25"
-                    [(ngModel)]="editItemForm.price" />
-                  <input class="input input-short" type="number" placeholder="Order" min="0"
-                    [(ngModel)]="editItemForm.sortOrder" />
+      @for (cat of tree.categories; track cat.id) {
+        <section class="category card">
+
+          @if (isEditingCategory(cat)) {
+            <div class="inline-form">
+              <h3>Edit Category</h3>
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="field-label">Name</label>
+                  <input class="input" type="text" placeholder="Category name"
+                    [(ngModel)]="editCategoryForm.name" (keyup.enter)="saveEditCategory()" />
                 </div>
-                <div class="form-actions">
-                  <button class="btn btn-primary btn-sm" (click)="saveEditItem()" [disabled]="saving()">Save</button>
-                  <button class="btn btn-ghost btn-sm"   (click)="cancelEditItem()">Cancel</button>
+                <div class="form-field form-field-short">
+                  <label class="field-label">Sort order</label>
+                  <input class="input" type="number" placeholder="0" min="0"
+                    [(ngModel)]="editCategoryForm.sortOrder" />
                 </div>
-              </li>
-            } @else {
-              <li class="item-row">
-                <span class="item-name">{{ item.name }}</span>
-                <span class="item-price">{{ item.price | currency }}</span>
-                <div class="item-actions">
-                  <button class="btn btn-sm"
-                    [class.btn-sold-out]="item.soldOut"
-                    [class.btn-in-stock]="!item.soldOut"
-                    (click)="toggleSoldOut(item)"
-                    [title]="item.soldOut ? 'Mark in stock' : 'Mark sold out'">
-                    {{ item.soldOut ? 'Sold Out' : 'In Stock' }}
-                  </button>
-                  <button class="btn btn-ghost btn-sm" (click)="startEditItem(item)">Edit</button>
-                </div>
-              </li>
-            }
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" (click)="saveEditCategory()" [disabled]="saving()">Save</button>
+                <button class="btn btn-ghost"   (click)="cancelEditCategory()">Cancel</button>
+              </div>
+            </div>
+          } @else {
+            <div class="category-header">
+              <span class="category-name">{{ cat.name }}</span>
+              <span class="sort-badge">#{{ cat.sortOrder }}</span>
+              <button class="btn btn-ghost btn-sm" (click)="startEditCategory(cat)">Edit</button>
+              <button class="btn btn-danger btn-sm" (click)="deleteCategory(cat)" [disabled]="saving()">Delete</button>
+            </div>
           }
-        </ul>
 
-        @if (isAddingItemTo(cat.id)) {
-          <div class="inline-form add-item-form">
-            <div class="form-row">
-              <input class="input" type="text" placeholder="Item name"
-                [(ngModel)]="itemForm.name" (keyup.enter)="saveNewItem()" />
-              <input class="input input-short" type="number" placeholder="Price" min="0" step="0.25"
-                [(ngModel)]="itemForm.price" />
-              <input class="input input-short" type="number" placeholder="Order" min="0"
-                [(ngModel)]="itemForm.sortOrder" />
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-primary btn-sm" (click)="saveNewItem()" [disabled]="saving()">Add</button>
-              <button class="btn btn-ghost btn-sm"   (click)="cancelAddItem()">Cancel</button>
-            </div>
-          </div>
-        } @else {
-          <button class="btn btn-ghost btn-sm add-item-btn" (click)="openAddItem(cat.id)">
-            + Add Item
-          </button>
-        }
-      </section>
-    }
-
-    @if (tree.categories.length === 0) {
-      <p class="empty">No categories yet. Add one above to get started.</p>
-    }
-
-    <!-- ════════════════════════════════════════════════════════════════════
-         MODIFIER GROUPS SECTION
-    ════════════════════════════════════════════════════════════════════════ -->
-    <div class="section-divider">
-      <h2 class="section-title">Modifier Groups</h2>
-      <button class="btn btn-primary btn-sm" (click)="openAddGroup()" [disabled]="saving()">
-        + Group
-      </button>
-    </div>
-
-    <!-- Add group form -->
-    @if (showAddGroup()) {
-      <div class="inline-form card">
-        <h3>New Modifier Group</h3>
-        <div class="form-row">
-          <input class="input" type="text" placeholder="Group name (e.g. Drink Type)"
-            [(ngModel)]="groupForm.name" />
-        </div>
-        <div class="form-row">
-          <label class="form-label">Min selections</label>
-          <input class="input input-short" type="number" min="0"
-            [(ngModel)]="groupForm.minSelections" />
-        </div>
-        <div class="form-row form-row-checkbox">
-          <label class="checkbox-label">
-            <input type="checkbox" [(ngModel)]="groupForm.maxUnlimited" />
-            Unlimited max
-          </label>
-          @if (!groupForm.maxUnlimited) {
-            <input class="input input-short" type="number" min="1" placeholder="Max"
-              [(ngModel)]="groupForm.maxSelections" />
-          }
-        </div>
-        <div class="form-row">
-          <label class="form-label">Sort order</label>
-          <input class="input input-short" type="number" min="0"
-            [(ngModel)]="groupForm.sortOrder" />
-        </div>
-        <div class="form-actions">
-          <button class="btn btn-primary" (click)="saveNewGroup()" [disabled]="saving()">Save</button>
-          <button class="btn btn-ghost"   (click)="cancelAddGroup()">Cancel</button>
-        </div>
-      </div>
-    }
-
-    <!-- Modifier group cards -->
-    @for (group of tree.modifierGroups; track group.id) {
-      <section class="modifier-group-card card">
-
-        @if (isEditingGroup(group)) {
-          <!-- Edit group form -->
-          <div class="inline-form">
-            <h3>Edit Group</h3>
-            <div class="form-row">
-              <input class="input" type="text" placeholder="Group name"
-                [(ngModel)]="editGroupForm.name" />
-            </div>
-            <div class="form-row">
-              <label class="form-label">Min selections</label>
-              <input class="input input-short" type="number" min="0"
-                [(ngModel)]="editGroupForm.minSelections" />
-            </div>
-            <div class="form-row form-row-checkbox">
-              <label class="checkbox-label">
-                <input type="checkbox" [(ngModel)]="editGroupForm.maxUnlimited" />
-                Unlimited max
-              </label>
-              @if (!editGroupForm.maxUnlimited) {
-                <input class="input input-short" type="number" min="1" placeholder="Max"
-                  [(ngModel)]="editGroupForm.maxSelections" />
-              }
-            </div>
-            <div class="form-row">
-              <label class="form-label">Sort order</label>
-              <input class="input input-short" type="number" min="0"
-                [(ngModel)]="editGroupForm.sortOrder" />
-            </div>
-            <div class="form-actions">
-              <button class="btn btn-primary" (click)="saveEditGroup()" [disabled]="saving()">Save</button>
-              <button class="btn btn-ghost"   (click)="cancelEditGroup()">Cancel</button>
-            </div>
-          </div>
-
-        } @else {
-
-          <!-- Group header -->
-          <div class="group-header">
-            <div class="group-header-left">
-              <span class="group-name">{{ group.name }}</span>
-              <span class="group-rule-badge">{{ groupRuleLabel(group) }}</span>
-            </div>
-            <div class="group-actions">
-              <button class="btn btn-ghost btn-sm"
-                (click)="openAssignPanel(group)" [disabled]="saving()">
-                Assign Items
-              </button>
-              <button class="btn btn-ghost btn-sm" (click)="startEditGroup(group)">Edit</button>
-              <button class="btn btn-danger btn-sm" (click)="deleteGroup(group)" [disabled]="saving()">Delete</button>
-            </div>
-          </div>
-
-          <!-- Options list -->
-          <ul class="option-list">
-            @for (option of group.options; track option.id) {
-              @if (isEditingOption(option)) {
-                <li class="inline-form option-edit-form">
+          <ul class="item-list">
+            @for (item of cat.items; track item.id) {
+              @if (isEditingItem(item)) {
+                <li class="inline-form item-edit-form">
                   <div class="form-row">
-                    <input class="input" type="text" placeholder="Option name"
-                      [(ngModel)]="editOptionForm.name" (keyup.enter)="saveEditOption()" />
-                  </div>
-                  <div class="form-row form-row-checkbox">
-                    <label class="checkbox-label">
-                      <input type="checkbox" [(ngModel)]="editOptionForm.isDefault" />
-                      Default selected
-                    </label>
-                    <label class="checkbox-label">
-                      <input type="checkbox" [(ngModel)]="editOptionForm.allowsCustomText" />
-                      Custom text input
-                    </label>
+                    <div class="form-field">
+                      <label class="field-label">Name</label>
+                      <input class="input" type="text" placeholder="Item name"
+                        [(ngModel)]="editItemForm.name" (keyup.enter)="saveEditItem()" />
+                    </div>
+                    <div class="form-field form-field-short">
+                      <label class="field-label">Price</label>
+                      <input class="input" type="number" placeholder="0.00" min="0" step="0.25"
+                        [(ngModel)]="editItemForm.price" />
+                    </div>
                   </div>
                   <div class="form-actions">
-                    <button class="btn btn-primary btn-sm" (click)="saveEditOption()" [disabled]="saving()">Save</button>
-                    <button class="btn btn-ghost btn-sm"   (click)="cancelEditOption()">Cancel</button>
+                    <button class="btn btn-primary btn-sm" (click)="saveEditItem()" [disabled]="saving()">Save</button>
+                    <button class="btn btn-ghost btn-sm"   (click)="cancelEditItem()">Cancel</button>
                   </div>
                 </li>
               } @else {
-                <li class="option-row">
-                  <span class="option-name">{{ option.name }}</span>
-                  @if (option.isDefault) {
-                    <span class="badge badge-default">Default</span>
-                  }
-                  @if (option.allowsCustomText) {
-                    <span class="badge badge-custom">Custom text</span>
-                  }
-                  <div class="option-actions">
-                    <button class="btn btn-ghost btn-sm" (click)="startEditOption(option)">Edit</button>
-                    <button class="btn btn-danger btn-sm" (click)="deleteOption(option)" [disabled]="saving()">✕</button>
+                <li class="item-row"
+                  [class.dragging]="isDragging(item.id)"
+                  [class.drag-over]="isDragOver(item.id)"
+                  draggable="true"
+                  (dragstart)="onDragStart(item, $event)"
+                  (dragover)="onDragOver(item, $event)"
+                  (dragleave)="onDragLeave(item)"
+                  (drop)="onDrop(item, cat, $event)"
+                  (dragend)="onDragEnd()">
+
+                  <!-- Main row -->
+                  <div class="item-row-main">
+                    <span class="drag-handle" title="Drag to reorder">⠿</span>
+                    <span class="item-name">{{ item.name }}</span>
+                    <span class="item-price">{{ item.price | currency }}</span>
+                    <div class="item-actions">
+                      <button class="btn btn-sm"
+                        [class.btn-sold-out]="item.soldOut"
+                        [class.btn-in-stock]="!item.soldOut"
+                        (click)="toggleSoldOut(item)"
+                        [title]="item.soldOut ? 'Mark in stock' : 'Mark sold out'">
+                        {{ item.soldOut ? 'Sold Out' : 'In Stock' }}
+                      </button>
+                      <button class="btn btn-ghost btn-sm" (click)="startEditItem(item)">Edit</button>
+                      <button class="btn btn-danger btn-sm" (click)="deleteItem(item)" [disabled]="saving()">✕</button>
+                      <button class="btn btn-ghost btn-sm expand-btn"
+                        (click)="toggleItemExpand(item.id)"
+                        [title]="isItemExpanded(item.id) ? 'Hide modifier groups' : 'Show modifier groups'">
+                        {{ isItemExpanded(item.id) ? '▲' : '▼' }}
+                      </button>
+                    </div>
                   </div>
+
+                  <!-- Expanded modifier panel -->
+                  @if (isItemExpanded(item.id)) {
+                    <div class="item-modifiers-panel">
+                      @if (getItemModifierGroups(item).length === 0) {
+                        <span class="no-modifiers">
+                          No modifier groups assigned. Go to the
+                          <button class="link-btn" (click)="setTab('modifiers')">Modifiers tab</button>
+                          to assign some.
+                        </span>
+                      } @else {
+                        <div class="modifier-chips">
+                          @for (group of getItemModifierGroups(item); track group.id) {
+                            <span class="modifier-chip">
+                              <button class="chip-name" (click)="goToGroup(group.id)"
+                                title="Go to this group to edit it">
+                                {{ group.name }}
+                              </button>
+                              <button class="chip-remove" (click)="removeModifierFromItem(item, group.id)"
+                                [disabled]="saving()" title="Remove from this item">×</button>
+                            </span>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
                 </li>
               }
             }
           </ul>
 
-          <!-- Add option form / button -->
-          @if (isAddingOptionTo(group.id)) {
-            <div class="inline-form add-option-form">
+          @if (isAddingItemTo(cat.id)) {
+            <div class="inline-form add-item-form">
               <div class="form-row">
-                <input class="input" type="text" placeholder="Option name (e.g. Iced)"
-                  [(ngModel)]="optionForm.name" (keyup.enter)="saveNewOption()" />
+                <div class="form-field">
+                  <label class="field-label">Name *</label>
+                  <input class="input" type="text" placeholder="Item name"
+                    [(ngModel)]="itemForm.name" (keyup.enter)="saveNewItem()" />
+                </div>
+                <div class="form-field form-field-short">
+                  <label class="field-label">Price *</label>
+                  <input class="input" type="number" placeholder="0.00" min="0" step="0.25"
+                    [(ngModel)]="itemForm.price" />
+                </div>
               </div>
-              <div class="form-row form-row-checkbox">
-                <label class="checkbox-label">
-                  <input type="checkbox" [(ngModel)]="optionForm.isDefault" />
-                  Default selected
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" [(ngModel)]="optionForm.allowsCustomText" />
-                  Custom text input
-                </label>
-              </div>
+              @if (addItemError()) {
+                <p class="form-error">{{ addItemError() }}</p>
+              }
               <div class="form-actions">
-                <button class="btn btn-primary btn-sm" (click)="saveNewOption()" [disabled]="saving()">Add</button>
-                <button class="btn btn-ghost btn-sm"   (click)="cancelAddOption()">Cancel</button>
+                <button class="btn btn-primary btn-sm" (click)="saveNewItem()" [disabled]="saving()">Add</button>
+                <button class="btn btn-ghost btn-sm"   (click)="cancelAddItem()">Cancel</button>
               </div>
             </div>
           } @else {
-            <button class="btn btn-ghost btn-sm add-option-btn" (click)="openAddOption(group.id)">
-              + Add Option
+            <button class="btn btn-ghost btn-sm add-item-btn" (click)="openAddItem(cat.id)">
+              + Add Item
             </button>
           }
+        </section>
+      }
 
-          <!-- Item assignment panel -->
-          @if (isAssigning(group.id)) {
-            <div class="assign-panel">
-              <div class="assign-panel-header">
-                <span class="assign-title">Assign "{{ group.name }}" to items</span>
-                <span class="assign-hint">Check items that should show this modifier group</span>
-              </div>
-              @for (cat of tree.categories; track cat.id) {
-                @if (cat.items.length > 0) {
-                  <div class="assign-category">
-                    <label class="assign-cat-header">
-                      <input
-                        type="checkbox"
-                        [checked]="isCategoryFullyChecked(cat)"
-                        [indeterminate]="isCategoryPartiallyChecked(cat)"
-                        (change)="toggleCategoryAssignment(cat)"
-                      />
-                      <span class="assign-cat-name">{{ cat.name }}</span>
-                    </label>
-                    @for (item of cat.items; track item.id) {
-                      <label class="assign-item-row">
-                        <input
-                          type="checkbox"
-                          [checked]="assigningSelections()[item.id]"
-                          (change)="toggleItemAssignment(item.id)"
-                        />
-                        <span>{{ item.name }}</span>
-                      </label>
-                    }
-                  </div>
-                }
-              }
-              <div class="form-actions assign-actions">
-                <button class="btn btn-primary btn-sm" (click)="saveAssignments()" [disabled]="saving()">
-                  Apply
-                </button>
-                <button class="btn btn-ghost btn-sm" (click)="closeAssignPanel()">Cancel</button>
-              </div>
-            </div>
-          }
-
-        }
-      </section>
+      @if (tree.categories.length === 0) {
+        <p class="empty">No categories yet. Add one above to get started.</p>
+      }
     }
 
-    @if (tree.modifierGroups.length === 0 && !showAddGroup()) {
-      <p class="empty">No modifier groups yet. Add one to enable drink customisation.</p>
+    <!-- ══════════════════════════════════════════════════════════════════════
+         MODIFIER GROUPS TAB
+    ══════════════════════════════════════════════════════════════════════════ -->
+    @if (activeTab() === 'modifiers') {
+
+      <!-- Add group form -->
+      @if (showAddGroup()) {
+        <div class="inline-form card">
+          <h3>New Modifier Group</h3>
+          <div class="form-row">
+            <input class="input" type="text" placeholder="Group name (e.g. Drink Type)"
+              [(ngModel)]="groupForm.name" />
+          </div>
+          <div class="form-row">
+            <label class="form-label">Min selections</label>
+            <input class="input input-short" type="number" min="0"
+              [(ngModel)]="groupForm.minSelections" />
+          </div>
+          <div class="form-row form-row-checkbox">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="groupForm.maxUnlimited" />
+              Unlimited max
+            </label>
+            @if (!groupForm.maxUnlimited) {
+              <input class="input input-short" type="number" min="1" placeholder="Max"
+                [(ngModel)]="groupForm.maxSelections" />
+            }
+          </div>
+          <div class="form-row">
+            <label class="form-label">Sort order</label>
+            <input class="input input-short" type="number" min="0"
+              [(ngModel)]="groupForm.sortOrder" />
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" (click)="saveNewGroup()" [disabled]="saving()">Save</button>
+            <button class="btn btn-ghost"   (click)="cancelAddGroup()">Cancel</button>
+          </div>
+        </div>
+      }
+
+      <!-- Modifier group cards -->
+      @for (group of tree.modifierGroups; track group.id) {
+        <section class="modifier-group-card card" [class.group-highlighted]="isGroupHighlighted(group.id)">
+
+          @if (isEditingGroup(group)) {
+            <div class="inline-form">
+              <h3>Edit Group</h3>
+              <div class="form-row">
+                <input class="input" type="text" placeholder="Group name"
+                  [(ngModel)]="editGroupForm.name" />
+              </div>
+              <div class="form-row">
+                <label class="form-label">Min selections</label>
+                <input class="input input-short" type="number" min="0"
+                  [(ngModel)]="editGroupForm.minSelections" />
+              </div>
+              <div class="form-row form-row-checkbox">
+                <label class="checkbox-label">
+                  <input type="checkbox" [(ngModel)]="editGroupForm.maxUnlimited" />
+                  Unlimited max
+                </label>
+                @if (!editGroupForm.maxUnlimited) {
+                  <input class="input input-short" type="number" min="1" placeholder="Max"
+                    [(ngModel)]="editGroupForm.maxSelections" />
+                }
+              </div>
+              <div class="form-row">
+                <label class="form-label">Sort order</label>
+                <input class="input input-short" type="number" min="0"
+                  [(ngModel)]="editGroupForm.sortOrder" />
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" (click)="saveEditGroup()" [disabled]="saving()">Save</button>
+                <button class="btn btn-ghost"   (click)="cancelEditGroup()">Cancel</button>
+              </div>
+            </div>
+
+          } @else {
+
+            <!-- Group header -->
+            <div class="group-header">
+              <div class="group-header-left">
+                <span class="group-name">{{ group.name }}</span>
+                <span class="group-rule-badge">{{ groupRuleLabel(group) }}</span>
+              </div>
+              <div class="group-actions">
+                <button class="btn btn-ghost btn-sm"
+                  (click)="openAssignPanel(group)" [disabled]="saving()">
+                  Assign Items
+                </button>
+                <button class="btn btn-ghost btn-sm" (click)="startEditGroup(group)">Edit</button>
+                <button class="btn btn-danger btn-sm" (click)="deleteGroup(group)" [disabled]="saving()">Delete</button>
+              </div>
+            </div>
+
+            <!-- Options list -->
+            <ul class="option-list">
+              @for (option of group.options; track option.id) {
+                @if (isEditingOption(option)) {
+                  <li class="inline-form option-edit-form">
+                    <div class="form-row">
+                      <input class="input" type="text" placeholder="Option name"
+                        [(ngModel)]="editOptionForm.name" (keyup.enter)="saveEditOption()" />
+                    </div>
+                    <div class="form-row form-row-checkbox">
+                      <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="editOptionForm.isDefault" />
+                        Default selected
+                      </label>
+                      <label class="checkbox-label">
+                        <input type="checkbox" [(ngModel)]="editOptionForm.allowsCustomText" />
+                        Custom text input
+                      </label>
+                    </div>
+                    <div class="form-actions">
+                      <button class="btn btn-primary btn-sm" (click)="saveEditOption()" [disabled]="saving()">Save</button>
+                      <button class="btn btn-ghost btn-sm"   (click)="cancelEditOption()">Cancel</button>
+                    </div>
+                  </li>
+                } @else {
+                  <li class="option-row">
+                    <span class="option-name">{{ option.name }}</span>
+                    @if (option.isDefault) {
+                      <span class="badge badge-default">Default</span>
+                    }
+                    @if (option.allowsCustomText) {
+                      <span class="badge badge-custom">Custom text</span>
+                    }
+                    <div class="option-actions">
+                      <button class="btn btn-ghost btn-sm" (click)="startEditOption(option)">Edit</button>
+                      <button class="btn btn-danger btn-sm" (click)="deleteOption(option)" [disabled]="saving()">✕</button>
+                    </div>
+                  </li>
+                }
+              }
+            </ul>
+
+            <!-- Add option form / button -->
+            @if (isAddingOptionTo(group.id)) {
+              <div class="inline-form add-option-form">
+                <div class="form-row">
+                  <input class="input" type="text" placeholder="Option name (e.g. Iced)"
+                    [(ngModel)]="optionForm.name" (keyup.enter)="saveNewOption()" />
+                </div>
+                <div class="form-row form-row-checkbox">
+                  <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="optionForm.isDefault" />
+                    Default selected
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" [(ngModel)]="optionForm.allowsCustomText" />
+                    Custom text input
+                  </label>
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-primary btn-sm" (click)="saveNewOption()" [disabled]="saving()">Add</button>
+                  <button class="btn btn-ghost btn-sm"   (click)="cancelAddOption()">Cancel</button>
+                </div>
+              </div>
+            } @else {
+              <button class="btn btn-ghost btn-sm add-option-btn" (click)="openAddOption(group.id)">
+                + Add Option
+              </button>
+            }
+
+            <!-- Item assignment panel -->
+            @if (isAssigning(group.id)) {
+              <div class="assign-panel">
+                <div class="assign-panel-header">
+                  <span class="assign-title">Assign "{{ group.name }}" to items</span>
+                  <span class="assign-hint">Check items that should show this modifier group</span>
+                </div>
+                @for (cat of tree.categories; track cat.id) {
+                  @if (cat.items.length > 0) {
+                    <div class="assign-category">
+                      <label class="assign-cat-header">
+                        <input
+                          type="checkbox"
+                          [checked]="isCategoryFullyChecked(cat)"
+                          [indeterminate]="isCategoryPartiallyChecked(cat)"
+                          (change)="toggleCategoryAssignment(cat)"
+                        />
+                        <span class="assign-cat-name">{{ cat.name }}</span>
+                      </label>
+                      @for (item of cat.items; track item.id) {
+                        <label class="assign-item-row">
+                          <input
+                            type="checkbox"
+                            [checked]="assigningSelections()[item.id]"
+                            (change)="toggleItemAssignment(item.id)"
+                          />
+                          <span>{{ item.name }}</span>
+                        </label>
+                      }
+                    </div>
+                  }
+                }
+                <div class="form-actions assign-actions">
+                  <button class="btn btn-primary btn-sm" (click)="saveAssignments()" [disabled]="saving()">
+                    Apply
+                  </button>
+                  <button class="btn btn-ghost btn-sm" (click)="closeAssignPanel()">Cancel</button>
+                </div>
+              </div>
+            }
+
+          }
+        </section>
+      }
+
+      @if (tree.modifierGroups.length === 0 && !showAddGroup()) {
+        <p class="empty">No modifier groups yet. Add one to enable drink customisation.</p>
+      }
     }
   }
 </div>
