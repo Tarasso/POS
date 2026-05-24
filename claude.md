@@ -169,7 +169,12 @@ Angular CLI 21 drops `.component` from all generated filenames. This affects eve
    & $bin upload --workdir . --app "dist/pos/browser" --api "api" `
      --apiToken <token> --skipAppBuild true --skipApiBuild true --configFileLocation "."
    ```
-3. **`--skipApiBuild true` is required** — Oryx (the API build tool inside StaticSitesClient) is Linux-only and crashes on Windows. Azure installs Python packages server-side from `requirements.txt`.
+3. **`--skipApiBuild true` is required AND packages must be pre-bundled.** Oryx is Linux-only and crashes on Windows. Azure does NOT auto-install from `requirements.txt` when the build is skipped — the API gets a 404 on all routes if packages are missing. Before every deploy, run:
+   ```powershell
+   & "C:\Program Files\Python313\python.exe" -m pip install -r api\requirements.txt `
+     --target api\.python_packages\lib\site-packages
+   ```
+   `api/.python_packages/` is gitignored but StaticSitesClient.exe zips from the filesystem so it's included in the upload. When you add a new package to `requirements.txt`, re-run this before deploying.
 4. **`func start` needs the Python 3.11 venv in PATH** — system default is 3.13, which the Functions runtime rejects. Run from `/api` with:
    ```powershell
    $env:PATH = "C:\Users\kylem\OneDrive\Desktop\POS\api\.venv\Scripts;" + $env:PATH
