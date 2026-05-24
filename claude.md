@@ -136,7 +136,7 @@ DELETE /api/menu/modifier-options/{id}          → delete modifier option
 
 GET    /api/orders?status=open                  → list orders by status
 POST   /api/orders                              → create order
-PATCH  /api/orders/{id}/complete                → mark completed (Phase 3 — currently returns 501)
+PATCH  /api/orders/{id}/complete                → mark completed (create-before-delete across partitions + SignalR broadcast)
 
 GET    /api/analytics/summary                   → aggregate stats
 GET    /api/analytics/orders                    → historical orders
@@ -158,7 +158,7 @@ POST   /api/negotiate                           → SignalR connection handshake
 - Python: type hints required, `azure-functions` v2 programming model
 - API responses: JSON, camelCase in API and frontend, also camelCase in DB (keep it consistent — no transformation layer)
 - IDs prefixed by type: `cat_`, `item_`, `ord_`
-- No authentication in v1 — add later via SWA built-in auth if needed
+- Authentication: SWA built-in auth (Entra ID / Microsoft), invitation-based role assignment (`staff`, `owner`). See **Security** section below.
 
 ## Free Tier Constraints
 - Only ONE Cosmos DB free-tier account per Azure subscription
@@ -181,8 +181,10 @@ Build strictly in this order. Each phase ships working end-to-end before the nex
 - **Phase 1**: ✅ Menu management — Cosmos schema, menu CRUD API, admin UI, sold-out toggle
 - **Phase 2**: ✅ Order taking — category tiles → item tiles → modifier selection → cart → order POST; modifier system (groups/options CRUD + bulk assignment); global nav bar
 - **Phase 3**: ✅ KDS — SignalR setup, order cards, live timer, complete action
-- **Phase 4**: Analytics — aggregation queries, dashboard
+- **Phase 4**: ✅ Analytics — aggregation queries, dashboard
 - **Phase 5**: Polish — real-device PWA install testing, empty states, error handling
+
+> **Auth** (shipped between Phase 4 and 5): SWA built-in auth with Entra ID (Microsoft). Role-based access via Azure Portal invitations. See **Security** section.
 
 Do not jump ahead.
 
@@ -361,6 +363,54 @@ $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\Stat
 17. **`signal<Set<string>>` requires a new Set reference** — Angular change detection compares by reference. Use `new Set([...s, id])` and `new Set(s)` with `.delete()` rather than mutating in place.
 18. **SignalR broadcasts reach Azure directly from `func start`** — there is no local SignalR emulator. Broadcasts hit the real `signalr-pos-kylem.service.signalr.net` endpoint even during local development. The KDS Angular client also connects directly to Azure SignalR (the negotiate response contains the Azure URL); this goes through the client's network, not through the SWA CLI proxy.
 
+## Phase 4 Outcomes
+
+### What was built
+
+**API**
+- **`api/analytics_routes.py`** — new Blueprint registered in `function_app.py`; two endpoints:
+  - `GET /api/analytics/summary` → queries all completed orders (partition `"completed"`), aggregates in Python: `totalOrders`, `totalRevenue`, `avgOrderValue`, top 5 items by qty, revenue by day (last 30 days)
+  - `GET /api/analytics/orders` → completed order history sorted newest-first
+
+**Frontend models**
+- **`src/app/core/models/analytics.models.ts`** — `TopItem`, `DailyRevenue`, `AnalyticsSummary`, `AnalyticsOrdersResponse`
+
+**Frontend service**
+- **`src/app/core/services/analytics.service.ts`** — signals: `summary`, `orders`, `loading`, `error`; `loadAll()` fires both HTTP requests concurrently
+
+**Analytics UI** (`src/app/features/analytics/`)
+- Summary cards row: Total Orders · Total Revenue · Avg Order Value
+- Top Items table: rank, item name, qty sold, revenue (top 5)
+- Revenue by Day table: last 30 days, sorted newest-first
+- Order History table: date, customer, item count, total; empty state if no completed orders
+- Loading/error states; `CurrencyPipe` + `DatePipe` for formatting — no new packages
+
+## Security
+
+### SWA Built-in Auth (Entra ID / Microsoft)
+
+Authentication is enforced at the **Azure CDN layer** — unauthenticated requests never reach Angular or Azure Functions.
+
+**How it works:**
+- `staticwebapp.config.json` protects `/*` and `/api/*` with `allowedRoles: ["staff", "owner"]`
+- `/.auth/*` stays open to `anonymous` (login/logout/me endpoints must be reachable before auth)
+- Any 401 auto-redirects to `/.auth/login/aad` (Microsoft sign-in)
+- After sign-in, SWA sets a secure httpOnly cookie; user lands back on the app
+- Sign Out link in the nav bar points to `/.auth/logout`
+
+**Role management (Azure Portal):**
+1. Azure Portal → `swa-pos-kylem` → Settings → **Authentication** — Entra ID and GitHub providers are pre-enabled in Simple mode
+2. Azure Portal → `swa-pos-kylem` → Settings → **Role management** → **Invite**
+   - Enter email, select provider (Entra ID), assign role (`staff` or `owner`)
+   - Send the generated invitation link; it expires after 24 hours
+   - Free Microsoft accounts (Outlook/Hotmail/Live) work — no work/school account required
+3. To revoke: Role management → find user → Delete (takes effect immediately)
+
+**Local dev:**
+`swa start` serves a mock auth form at `http://localhost:4280/.auth/login/aad`. Fill in any name/email and type `staff` in the roles field. No real Microsoft account needed.
+
+**Azure Functions `AuthLevel.ANONYMOUS` is intentional** — the SWA CDN blocks unauthenticated traffic before it ever reaches the function runtime. The auth level setting only affects direct Function URL access, which is not exposed here.
+
 ## Not in Scope
-- Tax, payments, multi-tenant, user auth (v1), push notifications, order editing
+- Tax, payments, multi-tenant, push notifications, order editing
 - Only two order states ever exist: "open" and "completed"
