@@ -1,1 +1,104 @@
-<p>analytics works!</p>
+<div class="analytics-page">
+  <h1 class="page-title">Analytics</h1>
+
+  @if (svc.loading()) {
+    <p class="state-msg">Loading…</p>
+  } @else if (svc.error()) {
+    <p class="state-msg error">{{ svc.error() }}</p>
+  } @else {
+
+    <!-- ── Summary cards ──────────────────────────────────────────────────── -->
+    @if (svc.summary(); as s) {
+      <div class="summary-cards">
+        <div class="card">
+          <div class="card-value">{{ s.totalOrders }}</div>
+          <div class="card-label">Total Orders</div>
+        </div>
+        <div class="card">
+          <div class="card-value">{{ s.totalRevenue | currency }}</div>
+          <div class="card-label">Total Revenue</div>
+        </div>
+        <div class="card">
+          <div class="card-value">{{ s.avgOrderValue | currency }}</div>
+          <div class="card-label">Avg Order Value</div>
+        </div>
+      </div>
+
+      <!-- ── Top Items ──────────────────────────────────────────────────────── -->
+      @if (s.topItems.length > 0) {
+        <h2>Top Items</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th class="num">Qty Sold</th>
+              <th class="num">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of s.topItems; track item.itemId; let i = $index) {
+              <tr>
+                <td class="rank">{{ i + 1 }}</td>
+                <td>{{ item.name }}</td>
+                <td class="num">{{ item.qtyTotal }}</td>
+                <td class="num">{{ item.revenue | currency }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      <!-- ── Revenue by Day ─────────────────────────────────────────────────── -->
+      @if (s.revenueByDay.length > 0) {
+        <h2>Revenue by Day <span class="subtitle">(last 30 days)</span></h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th class="num">Orders</th>
+              <th class="num">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (day of s.revenueByDay; track day.date) {
+              <tr>
+                <td>{{ day.date | date: 'MMM d, y' }}</td>
+                <td class="num">{{ day.orders }}</td>
+                <td class="num">{{ day.revenue | currency }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    }
+
+    <!-- ── Order History ──────────────────────────────────────────────────── -->
+    <h2>Order History</h2>
+    @if (svc.orders().length === 0) {
+      <p class="state-msg">No completed orders yet.</p>
+    } @else {
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Completed</th>
+            <th>Customer</th>
+            <th class="num">Items</th>
+            <th class="num">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (order of svc.orders(); track order.id) {
+            <tr>
+              <td>{{ order.completedAt | date: 'MMM d, y, h:mm a' }}</td>
+              <td>{{ order.customerName }}</td>
+              <td class="num">{{ order.items.length }}</td>
+              <td class="num">{{ order.total | currency }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+  }
+</div>

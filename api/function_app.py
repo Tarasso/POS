@@ -1,6 +1,7 @@
 import json
 import azure.functions as func
 
+from analytics_routes import analytics_bp
 from menu_routes import menu_bp
 from order_routes import order_bp
 from signalr_helper import get_client_connection_info
@@ -8,6 +9,7 @@ from signalr_helper import get_client_connection_info
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 app.register_blueprint(menu_bp)
 app.register_blueprint(order_bp)
+app.register_blueprint(analytics_bp)
 
 
 @app.route(route="health", methods=["GET"])
