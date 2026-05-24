@@ -1,0 +1,502 @@
+/* ── Page shell ──────────────────────────────────────────────────────────── */
+
+.order-page {
+  position: relative;
+  min-height: 100dvh;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f9fafb;
+  color: #1a1a1a;
+}
+
+/* ── Shared header ───────────────────────────────────────────────────────── */
+
+.view-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.75rem;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 2.75rem; /* offset clears the 2.75rem fixed app-nav */
+  z-index: 10;
+}
+
+.view-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0;
+  flex: 1;
+}
+
+.btn-back {
+  background: none;
+  border: none;
+  font-size: 1.125rem;
+  color: #2563eb;
+  padding: 0;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Menu + category views ───────────────────────────────────────────────── */
+
+.menu-view,
+.category-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+/* ── Tile grid — category picker and item picker ─────────────────────────── */
+
+.tile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  padding: 0.875rem 0.875rem 6rem;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  min-height: 6rem;
+  padding: 1rem 0.75rem;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 0.875rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.25;
+  transition: background 0.1s, border-color 0.1s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active:not(:disabled) {
+    background: #eff6ff;
+    border-color: #93c5fd;
+  }
+
+  &.tile-sold-out {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+.sold-out-label {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Sticky cart bar ─────────────────────────────────────────────────────── */
+
+.cart-bar {
+  position: fixed;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 0.75rem;
+  padding: 0.875rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+  z-index: 20;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active { opacity: 0.9; }
+}
+
+/* On the modifiers view the footer takes bottom space; shift cart bar up */
+.cart-bar-above-footer {
+  bottom: 5rem;
+}
+
+.cart-bar-count {
+  font-size: 0.875rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.25);
+  border-radius: 0.375rem;
+  padding: 0.125rem 0.5rem;
+}
+
+.cart-bar-label {
+  flex: 1;
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.cart-bar-total {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+/* ── Modifiers view ──────────────────────────────────────────────────────── */
+
+.modifiers-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: 5rem; /* space for the sticky footer */
+}
+
+.modifiers-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Modifier group sections ─────────────────────────────────────────────── */
+
+.modifier-group {
+  padding: 0.875rem 0.875rem 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modifier-group-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
+}
+
+.modifier-group-name {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.modifier-group-rule {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+/* ── Modifier option buttons ─────────────────────────────────────────────── */
+
+.modifier-options-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.modifier-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  background: #fff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 2rem; /* pill shape */
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active:not(.modifier-btn-selected) {
+    background: #f3f4f6;
+  }
+
+  &.modifier-btn-selected {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+  }
+}
+
+/* ── Custom text input (shown inside a group when allowsCustomText option is selected) */
+
+.custom-text-wrapper {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.custom-text-input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 1.5px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+
+  &:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+}
+
+/* ── Modifiers sticky footer ─────────────────────────────────────────────── */
+
+.modifiers-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.875rem 1rem;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  z-index: 15;
+}
+
+/* ── Cart view ───────────────────────────────────────────────────────────── */
+
+.cart-view {
+  padding-bottom: 2rem;
+}
+
+.cart-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  background: #fff;
+  border-top: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.cart-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  border-bottom: 1px solid #f3f4f6;
+
+  &:last-child { border-bottom: none; }
+}
+
+.cart-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.cart-item-name {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cart-item-mods {
+  font-size: 0.75rem;
+  color: #6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Qty controls ────────────────────────────────────────────────────────── */
+
+.qty-controls {
+  display: flex;
+  align-items: center;
+  background: #f3f4f6;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.qty-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  background: none;
+  font-size: 1.25rem;
+  color: #374151;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active { background: #e5e7eb; }
+}
+
+.qty-value {
+  min-width: 1.75rem;
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.cart-item-price {
+  min-width: 3.5rem;
+  text-align: right;
+  font-size: 0.9375rem;
+  color: #374151;
+}
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1rem;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active { color: #dc2626; }
+}
+
+.cart-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  font-weight: 700;
+  font-size: 1rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.cart-total-label  { color: #374151; }
+.cart-total-amount { color: #111827; }
+
+/* ── Customer name input ─────────────────────────────────────────────────── */
+
+.customer-name-field { padding: 0.75rem 1rem; }
+
+.field-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.375rem;
+}
+
+.input {
+  width: 100%;
+  height: 3rem;
+  padding: 0 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+
+  &:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  }
+}
+
+/* ── Shared buttons ──────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 3rem;
+  padding: 0 1.25rem;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.1s, opacity 0.1s;
+  -webkit-tap-highlight-color: transparent;
+
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+
+  &:active:not(:disabled) { background: #1d4ed8; }
+}
+
+.btn-full {
+  width: 100%;
+  display: flex;
+}
+
+.submit-btn {
+  width: calc(100% - 2rem);
+  margin: 0.5rem 1rem 0;
+}
+
+/* ── Success overlay ─────────────────────────────────────────────────────── */
+
+.success-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 1.5rem;
+}
+
+.success-card {
+  background: #fff;
+  border-radius: 1rem;
+  padding: 2rem 1.5rem;
+  width: 100%;
+  max-width: 320px;
+  text-align: center;
+}
+
+.success-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 50%;
+  font-size: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+}
+
+.success-title { font-size: 1.375rem; font-weight: 700; margin: 0 0 0.5rem; }
+.success-name  { font-size: 1.0625rem; color: #374151; margin: 0 0 0.25rem; }
+.success-total { font-size: 1.375rem; font-weight: 700; color: #111827; margin: 0 0 1.5rem; }
+
+/* ── Shared feedback ─────────────────────────────────────────────────────── */
+
+.error-banner {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 1rem;
+  font-size: 0.9375rem;
+}
+
+.state-msg {
+  color: #6b7280;
+  text-align: center;
+  padding: 2rem 1rem;
+  font-size: 0.9375rem;
+  margin: 0;
+}

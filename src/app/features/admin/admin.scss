@@ -16,14 +16,28 @@
   justify-content: space-between;
   margin-bottom: 1rem;
 
-  h1 {
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin: 0;
-  }
+  h1 { font-size: 1.25rem; font-weight: 700; margin: 0; }
 }
 
-/* ── Cards (categories) ─────────────────────────────────────────────────── */
+/* ── Section divider (separates menu items from modifier groups) ─────────── */
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 1.5rem 0 0.75rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.section-title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  margin: 0;
+  color: #111827;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
 
 .card {
   background: #fff;
@@ -71,10 +85,7 @@
   min-height: 2.75rem;
 }
 
-.item-name {
-  flex: 1;
-  font-size: 0.9375rem;
-}
+.item-name  { flex: 1; font-size: 0.9375rem; }
 
 .item-price {
   color: #374151;
@@ -83,12 +94,7 @@
   text-align: right;
 }
 
-.item-actions {
-  display: flex;
-  gap: 0.375rem;
-}
-
-/* ── Add-item button (bottom of category) ───────────────────────────────── */
+.item-actions { display: flex; gap: 0.375rem; }
 
 .add-item-btn {
   margin-top: 0.5rem;
@@ -97,16 +103,180 @@
   padding-top: 0.5rem;
 }
 
+/* ── Modifier group card ────────────────────────────────────────────────── */
+
+.modifier-group-card {
+  /* inherits .card */
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  flex-wrap: wrap;
+}
+
+.group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.group-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.group-rule-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  white-space: nowrap;
+}
+
+.group-actions { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+
+/* ── Option list ────────────────────────────────────────────────────────── */
+
+.option-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0;
+  border-top: 1px solid #f3f4f6;
+  min-height: 2.5rem;
+  flex-wrap: wrap;
+}
+
+.option-name { flex: 1; font-size: 0.9375rem; }
+
+.option-actions { display: flex; gap: 0.375rem; }
+
+.add-option-btn {
+  margin-top: 0.5rem;
+  width: 100%;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+.add-option-form {
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 0.5rem;
+}
+
+.option-edit-form {
+  padding: 0.375rem 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+
+.badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  white-space: nowrap;
+}
+
+.badge-default {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-custom {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ── Item assignment panel ──────────────────────────────────────────────── */
+
+.assign-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+}
+
+.assign-panel-header {
+  margin-bottom: 0.625rem;
+}
+
+.assign-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.125rem;
+}
+
+.assign-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.assign-category {
+  margin-bottom: 0.5rem;
+}
+
+.assign-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.1875rem;
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] { flex-shrink: 0; }
+}
+
+.assign-cat-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.assign-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] { flex-shrink: 0; }
+}
+
+.assign-actions {
+  margin-top: 0.625rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.625rem;
+}
+
 /* ── Inline forms ───────────────────────────────────────────────────────── */
 
 .inline-form {
   padding: 0.75rem 0 0.25rem;
 
-  h3 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    margin: 0 0 0.5rem;
-  }
+  h3 { font-size: 0.9375rem; font-weight: 600; margin: 0 0 0.5rem; }
 }
 
 .add-item-form {
@@ -121,14 +291,32 @@
 
 .form-row {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
   margin-bottom: 0.5rem;
 }
 
-.form-actions {
+.form-row-checkbox {
+  gap: 1rem;
+}
+
+.form-label {
+  font-size: 0.8125rem;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.form-actions { display: flex; gap: 0.5rem; }
+
+.checkbox-label {
   display: flex;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
 }
 
 /* ── Inputs ─────────────────────────────────────────────────────────────── */
@@ -149,9 +337,7 @@
   }
 }
 
-.input-short {
-  flex: 0 0 5.5rem;
-}
+.input-short { flex: 0 0 5.5rem; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
@@ -169,23 +355,15 @@
   white-space: nowrap;
   transition: background 0.1s, opacity 0.1s;
 
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-.btn-sm {
-  height: 2rem;
-  padding: 0 0.625rem;
-  font-size: 0.8125rem;
-}
+.btn-sm { height: 2rem; padding: 0 0.625rem; font-size: 0.8125rem; }
 
 .btn-primary {
   background: #2563eb;
   color: #fff;
   border-color: #2563eb;
-
   &:hover:not(:disabled) { background: #1d4ed8; }
 }
 
@@ -193,16 +371,20 @@
   background: transparent;
   color: #374151;
   border-color: #d1d5db;
-
   &:hover:not(:disabled) { background: #f9fafb; }
 }
 
-/* Sold-out toggle — tap target is the whole button, prominent color */
+.btn-danger {
+  background: transparent;
+  color: #dc2626;
+  border-color: #fca5a5;
+  &:hover:not(:disabled) { background: #fee2e2; }
+}
+
 .btn-in-stock {
   background: #d1fae5;
   color: #065f46;
   border-color: #6ee7b7;
-
   &:hover:not(:disabled) { background: #a7f3d0; }
 }
 
@@ -210,7 +392,6 @@
   background: #fee2e2;
   color: #991b1b;
   border-color: #fca5a5;
-
   &:hover:not(:disabled) { background: #fecaca; }
 }
 

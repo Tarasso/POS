@@ -6,6 +6,9 @@ import {
   CategoryWithItems,
   MenuItem,
   MenuTree,
+  ModifierGroup,
+  ModifierGroupWithOptions,
+  ModifierOption,
 } from '../models/menu.models';
 
 @Injectable({ providedIn: 'root' })
@@ -19,7 +22,6 @@ export class MenuService {
 
   // ── Read ────────────────────────────────────────────────────────────────
 
-  /** Fetch the full menu tree and store it in the `menu` signal. */
   loadMenu(): void {
     this.loading.set(true);
     this.error.set(null);
@@ -82,10 +84,80 @@ export class MenuService {
       .pipe(tap(() => this.loadMenu()));
   }
 
-  // ── Convenience computed helpers ────────────────────────────────────────
+  // ── Modifier group mutations ────────────────────────────────────────────
 
-  /** Return a flat list of all categories from the current menu signal. */
+  createModifierGroup(payload: {
+    name: string;
+    minSelections: number;
+    maxSelections: number | null;
+    sortOrder: number;
+  }): Observable<ModifierGroup> {
+    return this.http.post<ModifierGroup>('/api/menu/modifier-groups', payload).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  updateModifierGroup(
+    id: string,
+    payload: Partial<Pick<ModifierGroup, 'name' | 'minSelections' | 'maxSelections' | 'sortOrder'>>,
+  ): Observable<ModifierGroup> {
+    return this.http.put<ModifierGroup>(`/api/menu/modifier-groups/${id}`, payload).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  deleteModifierGroup(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/menu/modifier-groups/${id}`).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  /** Bulk-assign a modifier group to items. add/remove are arrays of item IDs. */
+  assignModifierGroup(
+    groupId: string,
+    payload: { add: string[]; remove: string[] },
+  ): Observable<{ ok: boolean }> {
+    return this.http
+      .patch<{ ok: boolean }>(`/api/menu/modifier-groups/${groupId}/items`, payload)
+      .pipe(tap(() => this.loadMenu()));
+  }
+
+  // ── Modifier option mutations ───────────────────────────────────────────
+
+  createModifierOption(payload: {
+    groupId: string;
+    name: string;
+    isDefault: boolean;
+    allowsCustomText: boolean;
+    sortOrder: number;
+  }): Observable<ModifierOption> {
+    return this.http.post<ModifierOption>('/api/menu/modifier-options', payload).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  updateModifierOption(
+    id: string,
+    payload: Partial<Pick<ModifierOption, 'name' | 'isDefault' | 'allowsCustomText' | 'sortOrder'>>,
+  ): Observable<ModifierOption> {
+    return this.http.put<ModifierOption>(`/api/menu/modifier-options/${id}`, payload).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  deleteModifierOption(id: string): Observable<{ ok: boolean }> {
+    return this.http.delete<{ ok: boolean }>(`/api/menu/modifier-options/${id}`).pipe(
+      tap(() => this.loadMenu()),
+    );
+  }
+
+  // ── Convenience helpers ─────────────────────────────────────────────────
+
   get categories(): CategoryWithItems[] {
     return this.menu()?.categories ?? [];
+  }
+
+  get modifierGroups(): ModifierGroupWithOptions[] {
+    return this.menu()?.modifierGroups ?? [];
   }
 }

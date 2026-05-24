@@ -65,7 +65,13 @@ Item document:
   "status": "open",
   "customerName": "Sarah",
   "items": [
-    { "itemId": "item_latte", "name": "Latte", "price": 5.50, "qty": 1 }
+    {
+      "itemId": "item_latte", "name": "Latte", "price": 5.50, "qty": 1,
+      "modifiers": [
+        { "groupId": "mgrp_...", "groupName": "Drink Type", "optionId": "mopt_...", "optionName": "Iced" },
+        { "groupId": "mgrp_...", "groupName": "Milk Type",  "optionId": "mopt_...", "optionName": "Oat Milk" }
+      ]
+    }
   ],
   "total": 5.50,
   "createdAt": "2026-05-23T14:32:00Z",
@@ -73,26 +79,69 @@ Item document:
 }
 ```
 
+### `menu` container — modifier documents
+
+Modifier group (partition key: `modifier_group`):
+```json
+{
+  "id": "mgrp_abc12345",
+  "type": "modifier_group",
+  "name": "Drink Type",
+  "minSelections": 1,
+  "maxSelections": 1,
+  "sortOrder": 1
+}
+```
+`maxSelections: null` means unlimited.
+
+Modifier option (partition key: `modifier_option`):
+```json
+{
+  "id": "mopt_abc12345",
+  "type": "modifier_option",
+  "groupId": "mgrp_abc12345",
+  "name": "Iced",
+  "isDefault": false,
+  "allowsCustomText": false,
+  "sortOrder": 1
+}
+```
+Options with `allowsCustomText: true` reveal a free-text input when selected (e.g. "Custom Instructions").
+
+`MenuItem` documents also gain:
+```json
+{ "modifierGroupIds": ["mgrp_abc12345", "mgrp_def67890"] }
+```
+Defaults to `[]` — backward-compatible with seeded items that predate this field.
+
 **Important**: Cosmos doesn't allow updating a document's partition key in place. When an order moves from "open" to "completed", delete the original doc and insert a new one with `status: "completed"` and `completedAt` set.
 
 ## API Endpoints
 
 ```
-GET    /api/menu                    → full menu tree
-POST   /api/menu/items              → create item
-PUT    /api/menu/items/{id}         → update item
-PATCH  /api/menu/items/{id}/soldout → toggle sold out
-POST   /api/menu/categories         → create category
-PUT    /api/menu/categories/{id}    → update category
+GET    /api/menu                                → full menu tree + modifier groups
+POST   /api/menu/categories                     → create category
+PUT    /api/menu/categories/{id}                → update category
+POST   /api/menu/items                          → create item
+PUT    /api/menu/items/{id}                     → update item
+PATCH  /api/menu/items/{id}/soldout             → toggle sold out
 
-GET    /api/orders?status=open      → list orders by status
-POST   /api/orders                  → create order (broadcasts via SignalR)
-PATCH  /api/orders/{id}/complete    → mark completed (broadcasts via SignalR)
+POST   /api/menu/modifier-groups                → create modifier group
+PUT    /api/menu/modifier-groups/{id}           → update modifier group
+DELETE /api/menu/modifier-groups/{id}           → delete group + all options + unassign from items
+PATCH  /api/menu/modifier-groups/{id}/items     → bulk assign/unassign items { add:[...], remove:[...] }
+POST   /api/menu/modifier-options               → create modifier option
+PUT    /api/menu/modifier-options/{id}          → update modifier option
+DELETE /api/menu/modifier-options/{id}          → delete modifier option
 
-GET    /api/analytics/summary       → aggregate stats
-GET    /api/analytics/orders        → historical orders
+GET    /api/orders?status=open                  → list orders by status
+POST   /api/orders                              → create order
+PATCH  /api/orders/{id}/complete                → mark completed (Phase 3 — currently returns 501)
 
-POST   /api/negotiate               → SignalR connection handshake
+GET    /api/analytics/summary                   → aggregate stats
+GET    /api/analytics/orders                    → historical orders
+
+POST   /api/negotiate                           → SignalR connection handshake
 ```
 
 ## SignalR
@@ -128,9 +177,9 @@ POST   /api/negotiate               → SignalR connection handshake
 ## Development Phases
 Build strictly in this order. Each phase ships working end-to-end before the next.
 
-- **Phase 0**: Scaffolding — Angular + `@angular/pwa`, Functions Python app, Azure resources created, hello world deployed
-- **Phase 1**: Menu management — Cosmos schema, menu CRUD API, admin UI, sold-out toggle
-- **Phase 2**: Order taking — menu browser, cart, customer name, order POST
+- **Phase 0**: ✅ Scaffolding — Angular + `@angular/pwa`, Functions Python app, Azure resources created, hello world deployed
+- **Phase 1**: ✅ Menu management — Cosmos schema, menu CRUD API, admin UI, sold-out toggle
+- **Phase 2**: ✅ Order taking — category tiles → item tiles → modifier selection → cart → order POST; modifier system (groups/options CRUD + bulk assignment); global nav bar
 - **Phase 3**: KDS — SignalR setup, order cards, live timer, complete action
 - **Phase 4**: Analytics — aggregation queries, dashboard
 - **Phase 5**: Polish — real-device PWA install testing, empty states, error handling
@@ -199,6 +248,51 @@ Angular CLI 21 drops `.component` from all generated filenames. This affects eve
    The deploy to Azure is unaffected — Azure uses Python 3.11 per `staticwebapp.config.json`.
 6. **Route params must be read via `req.route_params.get("id")`** — the bundled Python 3.13 worker rejects route-param names declared as function parameters (e.g. `def f(req, id: str)`). Use `id = req.route_params.get("id", "")` inside the function body instead.
 7. **Angular 17+ built-in control flow (`@if`, `@for`) makes `NgIf`/`NgFor` imports unnecessary** — importing them causes compiler warnings. Omit them from `standalone: true` component `imports` arrays when using block syntax.
+
+## Phase 2 Outcomes
+
+### What was built
+
+**API**
+- **`api/order_routes.py`** — new Blueprint registered in `function_app.py`; `GET /api/orders?status=`, `POST /api/orders`, `PATCH /api/orders/{id}/complete` (501 stub for Phase 3)
+- **`api/menu_routes.py`** — 8 new endpoints for modifier group/option CRUD and bulk item assignment; `GET /api/menu` now returns `modifierGroups` alongside `categories`
+
+**Frontend models**
+- **`src/app/core/models/order.models.ts`** — `CartItem` (with `cartLineId` + `modifiers[]`), `OrderLineItem`, `Order`, `AppliedModifier`, `CreateOrderPayload`
+- **`src/app/core/models/menu.models.ts`** — updated: `ModifierGroup`, `ModifierOption`, `ModifierGroupWithOptions`; `MenuItem` gains `modifierGroupIds: string[]`; `MenuTree` gains `modifierGroups`
+
+**Frontend services**
+- **`src/app/core/services/order.service.ts`** — cart signals (`cart`, `customerName`, `submitting`, `lastSubmittedOrder`), computed (`cartCount`, `cartTotal`, `canSubmit`), `addItem` always appends a new `cartLineId` line, `submitOrder` POSTs with modifiers
+- **`src/app/core/services/menu.service.ts`** — updated with modifier CRUD and `assignModifierGroup` methods
+
+**Order UI** (`src/app/features/order/`)
+- 4-view flow: `menu` (category tiles) → `category` (item tiles) → `modifiers` (pill buttons per group) → `cart`
+- Items without modifier groups add directly to cart; items with groups open the modifier view
+- Modifier groups enforce `minSelections` (Add to Cart disabled until met); `maxSelections: 1` = radio behaviour; `null` = unlimited multi-select
+- Default options pre-selected on open; `allowsCustomText` options reveal an inline text input
+- Cart lines keyed by `cartLineId` — same item with different modifiers stays separate
+- Cart shows a modifier summary line per item (e.g. *Iced · Oat Milk · Vanilla*)
+- Success overlay on order placed; resets to menu view
+
+**Admin UI** (`src/app/features/admin/`)
+- New **Modifier Groups** section below category list
+- Per-group: create/edit/delete the group (name, min, max selections, sort order)
+- Per-option: create/edit/delete (name, default flag, custom-text flag)
+- **Assign Items** panel: checklist of all items grouped by category; category-level checkbox with indeterminate state for partial selection; single **Apply** call to bulk-assign/unassign
+
+**Global navigation** (`src/app/app.ts`)
+- Fixed top nav bar (height `2.75rem`, dark slate `#1e293b`) with **POS** brand and links: Order · KDS · Admin · Analytics
+- `routerLinkActive` highlights the current route
+- `app-content` wrapper has `padding-top: 2.75rem`; order page sticky headers use `top: 2.75rem`
+
+### Phase 2 Gotchas
+
+8. **`[(ngModel)]` cannot bind directly to a signal** — bridge with a getter/setter pair on the component class: `get x() { return this.svc.x(); }` / `set x(v) { this.svc.x.set(v); }`.
+9. **`CartItem.cartLineId` (not `itemId`) is the unique cart key** — each add-to-cart always creates a new line so different modifier combinations remain separate. `increment/decrement/remove` all use `cartLineId`.
+10. **`ORDER BY c.createdAt DESC` may fail without a composite index** — `order_routes.py` catches the error and falls back to a Python `sorted()` call.
+11. **`100dvh` not `100vh`** — iOS Safari's `100vh` includes the hidden URL bar. Use `100dvh` throughout the order page to avoid layout overflow.
+12. **Global nav is `position: fixed`** — sticky elements inside page components must use `top: 2.75rem` (the nav height) not `top: 0`, or they slide under the nav bar on scroll.
+13. **`[indeterminate]` on `<input type="checkbox">`** — Angular supports binding to this DOM property directly; no special import needed.
 
 ## Commands
 

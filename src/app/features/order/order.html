@@ -1,1 +1,246 @@
-<p>order works!</p>
+<div class="order-page">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SUCCESS OVERLAY
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (lastSubmittedOrder(); as order) {
+    <div class="success-overlay">
+      <div class="success-card">
+        <div class="success-icon">✓</div>
+        <h2 class="success-title">Order Placed!</h2>
+        <p class="success-name">{{ order.customerName }}</p>
+        <p class="success-total">{{ order.total | currency }}</p>
+        <button class="btn btn-primary btn-full" (click)="startNewOrder()">
+          New Order
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: MENU — category picker
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'menu') {
+    <div class="menu-view">
+
+      <header class="view-header">
+        <h1 class="view-title">Order</h1>
+      </header>
+
+      @if (menuError()) {
+        <div class="error-banner">{{ menuError() }}</div>
+      }
+      @if (menuLoading() && !menu()) {
+        <p class="state-msg">Loading menu…</p>
+      }
+
+      @if (menu(); as tree) {
+        @if (tree.categories.length === 0) {
+          <p class="state-msg">No categories available.</p>
+        } @else {
+          <div class="tile-grid">
+            @for (cat of tree.categories; track cat.id) {
+              @if (cat.items.length > 0) {
+                <button class="tile" (click)="showCategory(cat)">{{ cat.name }}</button>
+              }
+            }
+          </div>
+        }
+      }
+
+      @if (cartCount() > 0) {
+        <div class="cart-bar" (click)="showCart()">
+          <span class="cart-bar-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
+          <span class="cart-bar-label">View Cart</span>
+          <span class="cart-bar-total">{{ cartTotal() | currency }}</span>
+        </div>
+      }
+
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: CATEGORY — item picker
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'category') {
+    @if (selectedCategory(); as cat) {
+      <div class="category-view">
+
+        <header class="view-header">
+          <button class="btn-back" (click)="showMenu()">‹ Back</button>
+          <h1 class="view-title">{{ cat.name }}</h1>
+        </header>
+
+        <div class="tile-grid">
+          @for (item of cat.items; track item.id) {
+            <button
+              class="tile"
+              [class.tile-sold-out]="item.soldOut"
+              [disabled]="item.soldOut"
+              (click)="addToCart(item)"
+            >
+              {{ item.name }}
+              @if (item.soldOut) {
+                <span class="sold-out-label">Sold out</span>
+              }
+            </button>
+          }
+        </div>
+
+        @if (cartCount() > 0) {
+          <div class="cart-bar" (click)="showCart()">
+            <span class="cart-bar-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
+            <span class="cart-bar-label">View Cart</span>
+            <span class="cart-bar-total">{{ cartTotal() | currency }}</span>
+          </div>
+        }
+
+      </div>
+    }
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: MODIFIERS — option picker for a selected item
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'modifiers') {
+    @if (pendingItem(); as item) {
+      <div class="modifiers-view">
+
+        <header class="view-header">
+          <button class="btn-back" (click)="cancelModify()">‹ Back</button>
+          <h1 class="view-title">{{ item.name }}</h1>
+        </header>
+
+        <div class="modifiers-scroll">
+          @for (group of activeModifierGroups(); track group.id) {
+            <section class="modifier-group">
+              <div class="modifier-group-header">
+                <span class="modifier-group-name">{{ group.name }}</span>
+                <span class="modifier-group-rule">{{ selectionRuleLabel(group) }}</span>
+              </div>
+              <div class="modifier-options-grid">
+                @for (option of group.options; track option.id) {
+                  <button
+                    class="modifier-btn"
+                    [class.modifier-btn-selected]="isOptionSelected(group.id, option.id)"
+                    (click)="toggleModifierOption(group.id, option.id, group.maxSelections)"
+                  >
+                    {{ option.name }}
+                  </button>
+                  @if (option.allowsCustomText && isOptionSelected(group.id, option.id)) {
+                    <div class="custom-text-wrapper">
+                      <input
+                        class="custom-text-input"
+                        type="text"
+                        placeholder="Add instructions…"
+                        [value]="pendingCustomTexts()[option.id] || ''"
+                        (input)="setCustomText(option.id, $event)"
+                        autocomplete="off"
+                        autocorrect="off"
+                        spellcheck="false"
+                      />
+                    </div>
+                  }
+                }
+              </div>
+            </section>
+          }
+        </div>
+
+        <div class="modifiers-footer">
+          <button
+            class="btn btn-primary btn-full"
+            [disabled]="!canAddToCart()"
+            (click)="addPendingToCart()"
+          >
+            Add to Cart
+          </button>
+        </div>
+
+        @if (cartCount() > 0) {
+          <div class="cart-bar cart-bar-above-footer" (click)="showCart()">
+            <span class="cart-bar-count">{{ cartCount() }} item{{ cartCount() === 1 ? '' : 's' }}</span>
+            <span class="cart-bar-label">View Cart</span>
+            <span class="cart-bar-total">{{ cartTotal() | currency }}</span>
+          </div>
+        }
+
+      </div>
+    }
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: CART
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'cart') {
+    <div class="cart-view">
+
+      <header class="view-header">
+        <button class="btn-back" (click)="showMenu()">‹ Menu</button>
+        <h1 class="view-title">Cart</h1>
+      </header>
+
+      @if (submitError()) {
+        <div class="error-banner">{{ submitError() }}</div>
+      }
+
+      @if (cart().length === 0) {
+        <p class="state-msg">Your cart is empty.</p>
+      }
+
+      @if (cart().length > 0) {
+
+        <ul class="cart-list">
+          @for (item of cart(); track item.cartLineId) {
+            <li class="cart-row">
+              <div class="cart-item-info">
+                <span class="cart-item-name">{{ item.name }}</span>
+                @if (item.modifiers.length > 0) {
+                  <span class="cart-item-mods">{{ modifierSummary(item.modifiers) }}</span>
+                }
+              </div>
+              <div class="qty-controls">
+                <button class="qty-btn" (click)="decrement(item.cartLineId)">−</button>
+                <span class="qty-value">{{ item.qty }}</span>
+                <button class="qty-btn" (click)="increment(item.cartLineId)">+</button>
+              </div>
+              <span class="cart-item-price">{{ (item.price * item.qty) | currency }}</span>
+              <button class="remove-btn" (click)="remove(item.cartLineId)" aria-label="Remove item">✕</button>
+            </li>
+          }
+        </ul>
+
+        <div class="cart-total-row">
+          <span class="cart-total-label">Total</span>
+          <span class="cart-total-amount">{{ cartTotal() | currency }}</span>
+        </div>
+
+        <div class="customer-name-field">
+          <label class="field-label" for="customerName">Customer Name</label>
+          <input
+            id="customerName"
+            class="input"
+            type="text"
+            placeholder="Enter name…"
+            [(ngModel)]="customerName"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="words"
+            spellcheck="false"
+          />
+        </div>
+
+        <button
+          class="btn btn-primary submit-btn"
+          [disabled]="!canSubmit()"
+          (click)="submitOrder()"
+        >
+          @if (submitting()) { Placing Order… } @else { Place Order }
+        </button>
+
+      }
+
+    </div>
+  }
+
+</div>
