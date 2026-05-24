@@ -1,1 +1,187 @@
-<p>admin works!</p>
+<div class="admin">
+  <header class="admin-header">
+    <h1>Menu Management</h1>
+    <button class="btn btn-primary" (click)="openAddCategory()" [disabled]="saving()">
+      + Category
+    </button>
+  </header>
+
+  <!-- ── Error banner ─────────────────────────────────────────────────── -->
+  @if (error()) {
+    <div class="error-banner">{{ error() }}</div>
+  }
+
+  <!-- ── Loading state ────────────────────────────────────────────────── -->
+  @if (loading() && !menu()) {
+    <p class="loading">Loading menu…</p>
+  }
+
+  <!-- ── Add Category form ─────────────────────────────────────────────── -->
+  @if (showAddCategory()) {
+    <div class="inline-form card">
+      <h3>New Category</h3>
+      <div class="form-row">
+        <input
+          class="input"
+          type="text"
+          placeholder="Category name"
+          [(ngModel)]="categoryForm.name"
+          (keyup.enter)="saveNewCategory()"
+        />
+        <input
+          class="input input-short"
+          type="number"
+          placeholder="Order"
+          [(ngModel)]="categoryForm.sortOrder"
+          min="0"
+        />
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-primary" (click)="saveNewCategory()" [disabled]="saving()">Save</button>
+        <button class="btn btn-ghost" (click)="cancelAddCategory()">Cancel</button>
+      </div>
+    </div>
+  }
+
+  <!-- ── Category list ────────────────────────────────────────────────── -->
+  @if (menu(); as tree) {
+    @for (cat of tree.categories; track cat.id) {
+
+      <!-- Category row / edit form -->
+      <section class="category card">
+        @if (isEditingCategory(cat)) {
+          <!-- Edit category form -->
+          <div class="inline-form">
+            <h3>Edit Category</h3>
+            <div class="form-row">
+              <input
+                class="input"
+                type="text"
+                placeholder="Category name"
+                [(ngModel)]="editCategoryForm.name"
+                (keyup.enter)="saveEditCategory()"
+              />
+              <input
+                class="input input-short"
+                type="number"
+                placeholder="Order"
+                [(ngModel)]="editCategoryForm.sortOrder"
+                min="0"
+              />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" (click)="saveEditCategory()" [disabled]="saving()">Save</button>
+              <button class="btn btn-ghost" (click)="cancelEditCategory()">Cancel</button>
+            </div>
+          </div>
+        } @else {
+          <!-- Category header row -->
+          <div class="category-header">
+            <span class="category-name">{{ cat.name }}</span>
+            <span class="sort-badge">#{{ cat.sortOrder }}</span>
+            <button class="btn btn-ghost btn-sm" (click)="startEditCategory(cat)">Edit</button>
+          </div>
+        }
+
+        <!-- Item rows -->
+        <ul class="item-list">
+          @for (item of cat.items; track item.id) {
+            @if (isEditingItem(item)) {
+              <!-- Edit item form -->
+              <li class="inline-form item-edit-form">
+                <div class="form-row">
+                  <input
+                    class="input"
+                    type="text"
+                    placeholder="Item name"
+                    [(ngModel)]="editItemForm.name"
+                    (keyup.enter)="saveEditItem()"
+                  />
+                  <input
+                    class="input input-short"
+                    type="number"
+                    placeholder="Price"
+                    [(ngModel)]="editItemForm.price"
+                    min="0"
+                    step="0.25"
+                  />
+                  <input
+                    class="input input-short"
+                    type="number"
+                    placeholder="Order"
+                    [(ngModel)]="editItemForm.sortOrder"
+                    min="0"
+                  />
+                </div>
+                <div class="form-actions">
+                  <button class="btn btn-primary btn-sm" (click)="saveEditItem()" [disabled]="saving()">Save</button>
+                  <button class="btn btn-ghost btn-sm" (click)="cancelEditItem()">Cancel</button>
+                </div>
+              </li>
+            } @else {
+              <!-- Item display row -->
+              <li class="item-row">
+                <span class="item-name">{{ item.name }}</span>
+                <span class="item-price">{{ item.price | currency }}</span>
+                <div class="item-actions">
+                  <button
+                    class="btn btn-sm"
+                    [class.btn-sold-out]="item.soldOut"
+                    [class.btn-in-stock]="!item.soldOut"
+                    (click)="toggleSoldOut(item)"
+                    [title]="item.soldOut ? 'Mark in stock' : 'Mark sold out'"
+                  >
+                    {{ item.soldOut ? 'Sold Out' : 'In Stock' }}
+                  </button>
+                  <button class="btn btn-ghost btn-sm" (click)="startEditItem(item)">Edit</button>
+                </div>
+              </li>
+            }
+          }
+        </ul>
+
+        <!-- Add item form / button -->
+        @if (isAddingItemTo(cat.id)) {
+          <div class="inline-form add-item-form">
+            <div class="form-row">
+              <input
+                class="input"
+                type="text"
+                placeholder="Item name"
+                [(ngModel)]="itemForm.name"
+                (keyup.enter)="saveNewItem()"
+              />
+              <input
+                class="input input-short"
+                type="number"
+                placeholder="Price"
+                [(ngModel)]="itemForm.price"
+                min="0"
+                step="0.25"
+              />
+              <input
+                class="input input-short"
+                type="number"
+                placeholder="Order"
+                [(ngModel)]="itemForm.sortOrder"
+                min="0"
+              />
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary btn-sm" (click)="saveNewItem()" [disabled]="saving()">Add</button>
+              <button class="btn btn-ghost btn-sm" (click)="cancelAddItem()">Cancel</button>
+            </div>
+          </div>
+        } @else {
+          <button class="btn btn-ghost btn-sm add-item-btn" (click)="openAddItem(cat.id)">
+            + Add Item
+          </button>
+        }
+      </section>
+    }
+
+    @if (tree.categories.length === 0) {
+      <p class="empty">No categories yet. Add one above to get started.</p>
+    }
+  }
+</div>

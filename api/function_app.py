@@ -1,7 +1,10 @@
 import json
 import azure.functions as func
 
+from menu_routes import menu_bp
+
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+app.register_blueprint(menu_bp)
 
 
 @app.route(route="health", methods=["GET"])

@@ -1,0 +1,234 @@
+/* ── Admin page layout ───────────────────────────────────────────────────── */
+
+.admin {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1a1a1a;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  h1 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+  }
+}
+
+/* ── Cards (categories) ─────────────────────────────────────────────────── */
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Category header row ────────────────────────────────────────────────── */
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.category-name {
+  font-weight: 600;
+  font-size: 1rem;
+  flex: 1;
+}
+
+.sort-badge {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  min-width: 2rem;
+}
+
+/* ── Item list ──────────────────────────────────────────────────────────── */
+
+.item-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid #f3f4f6;
+  min-height: 2.75rem;
+}
+
+.item-name {
+  flex: 1;
+  font-size: 0.9375rem;
+}
+
+.item-price {
+  color: #374151;
+  font-size: 0.9375rem;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.item-actions {
+  display: flex;
+  gap: 0.375rem;
+}
+
+/* ── Add-item button (bottom of category) ───────────────────────────────── */
+
+.add-item-btn {
+  margin-top: 0.5rem;
+  width: 100%;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+/* ── Inline forms ───────────────────────────────────────────────────────── */
+
+.inline-form {
+  padding: 0.75rem 0 0.25rem;
+
+  h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+}
+
+.add-item-form {
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 0.5rem;
+}
+
+.item-edit-form {
+  padding: 0.5rem 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* ── Inputs ─────────────────────────────────────────────────────────────── */
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0 0.625rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.9375rem;
+  outline: none;
+
+  &:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+}
+
+.input-short {
+  flex: 0 0 5.5rem;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, opacity 0.1s;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-sm {
+  height: 2rem;
+  padding: 0 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+
+  &:hover:not(:disabled) { background: #1d4ed8; }
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #374151;
+  border-color: #d1d5db;
+
+  &:hover:not(:disabled) { background: #f9fafb; }
+}
+
+/* Sold-out toggle — tap target is the whole button, prominent color */
+.btn-in-stock {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #6ee7b7;
+
+  &:hover:not(:disabled) { background: #a7f3d0; }
+}
+
+.btn-sold-out {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+
+  &:hover:not(:disabled) { background: #fecaca; }
+}
+
+/* ── Feedback states ─────────────────────────────────────────────────────── */
+
+.error-banner {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 0.375rem;
+  padding: 0.625rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9375rem;
+}
+
+.loading,
+.empty {
+  color: #6b7280;
+  text-align: center;
+  padding: 2rem 0;
+}

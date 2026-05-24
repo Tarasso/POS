@@ -176,9 +176,28 @@ Angular CLI 21 drops `.component` from all generated filenames. This affects eve
    func start
    ```
 
+## Phase 1 Outcomes
+
+### What was built
+- **`api/cosmos_helper.py`** — singleton Cosmos client, `get_menu_container()` / `get_orders_container()`
+- **`api/menu_routes.py`** — Blueprint with 6 endpoints (GET menu, POST/PUT categories, POST/PUT items, PATCH soldout)
+- **`api/seed_menu.py`** — idempotent standalone seed script (3 categories, 7 items)
+- **`src/app/core/models/menu.models.ts`** — `Category`, `MenuItem`, `CategoryWithItems`, `MenuTree` interfaces
+- **`src/app/core/services/menu.service.ts`** — signals-based service wrapping all 6 API calls
+- **`src/app/features/admin/`** — full admin UI: inline add/edit forms per category and item, sold-out toggle
+
+### Phase 1 Gotchas
+5. **`func start` (v4.12 preview) always uses its bundled Python 3.13 worker**, ignoring the venv Python 3.11 in PATH when invoked non-interactively. For local dev, also install `azure-cosmos` into system Python 3.13:
+   ```powershell
+   & "C:\Program Files\Python313\python.exe" -m pip install azure-cosmos
+   ```
+   The deploy to Azure is unaffected — Azure uses Python 3.11 per `staticwebapp.config.json`.
+6. **Route params must be read via `req.route_params.get("id")`** — the bundled Python 3.13 worker rejects route-param names declared as function parameters (e.g. `def f(req, id: str)`). Use `id = req.route_params.get("id", "")` inside the function body instead.
+7. **Angular 17+ built-in control flow (`@if`, `@for`) makes `NgIf`/`NgFor` imports unnecessary** — importing them causes compiler warnings. Omit them from `standalone: true` component `imports` arrays when using block syntax.
+
 ## Commands
 - `npm start` — Angular dev server
-- `func start` — Functions locally (run from `/api`, see gotcha #4 above)
+- `func start` — Functions locally (run from `/api`, see gotcha #4 and #5 above)
 - `swa start` — full local stack via Static Web Apps CLI
 - `npm run build` — production build
 - `swa deploy` — **broken on Windows**; use StaticSitesClient.exe directly (see gotcha #2)
