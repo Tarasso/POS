@@ -32,6 +32,8 @@ export interface Order {
   total: number;
   createdAt: string;
   completedAt: string | null;
+  /** Optional free-text event label set by the operator at order-taking time. */
+  eventName?: string;
 }
 
 /** Shape of GET /api/orders response. */
@@ -43,6 +45,8 @@ export interface OrdersResponse {
 export interface CreateOrderPayload {
   customerName: string;
   items: OrderLineItem[];
+  /** Optional event label — omit if no event is active. */
+  eventName?: string;
 }
 
 /**

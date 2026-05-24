@@ -6,6 +6,19 @@ import { AppliedModifier, CartItem, CreateOrderPayload, Order } from '../models/
 export class OrderService {
   private http = inject(HttpClient);
 
+  // ── Event name (persisted across sessions in localStorage) ──────────────
+  readonly eventName = signal<string>(
+    typeof localStorage !== 'undefined' ? (localStorage.getItem('pos_event_name') ?? '') : ''
+  );
+
+  setEventName(name: string): void {
+    const trimmed = name.trim();
+    this.eventName.set(trimmed);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('pos_event_name', trimmed);
+    }
+  }
+
   // ── Cart state ────────────────────────────────────────────────────────────
   readonly cart = signal<CartItem[]>([]);
   readonly customerName = signal<string>('');
@@ -74,6 +87,7 @@ export class OrderService {
     this.submitting.set(true);
     this.submitError.set(null);
 
+    const activeEvent = this.eventName().trim();
     const payload: CreateOrderPayload = {
       customerName: this.customerName().trim(),
       items: this.cart().map(c => ({
@@ -83,6 +97,7 @@ export class OrderService {
         qty: c.qty,
         modifiers: c.modifiers,
       })),
+      ...(activeEvent ? { eventName: activeEvent } : {}),
     };
 
     this.http.post<Order>('/api/orders', payload).subscribe({

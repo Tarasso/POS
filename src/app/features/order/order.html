@@ -25,6 +25,16 @@
 
       <header class="view-header">
         <h1 class="view-title">Order</h1>
+        <!-- Event banner: shows active event name or a prompt to set one -->
+        <button class="event-banner" (click)="openEventSheet()">
+          @if (eventName()) {
+            <span class="event-label">Event:</span>
+            <span class="event-name-text">{{ eventName() }}</span>
+          } @else {
+            <span class="event-unset">Set event name</span>
+          }
+          <span class="event-edit-icon">✎</span>
+        </button>
       </header>
 
       @if (menuError()) {
@@ -221,6 +231,46 @@
           <span class="cart-total-label">Total</span>
           <span class="cart-total-amount">{{ cartTotal() | currency }}</span>
         </div>
+      </div>
+
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       EVENT NAME SHEET
+       Bottom sheet — set the current event name (persisted to localStorage).
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (showEventSheet()) {
+    <div class="sheet-backdrop" (click)="closeEventSheet()"></div>
+    <div class="event-sheet" role="dialog" aria-label="Set event name">
+
+      <div class="sheet-drag-handle"></div>
+
+      <div class="sheet-header">
+        <h3 class="sheet-title">Event Name</h3>
+        <button class="sheet-close-btn sheet-cancel-btn" (click)="closeEventSheet()">Cancel</button>
+      </div>
+
+      <div class="event-sheet-body">
+        <p class="event-sheet-hint">
+          Give this event a name so you can filter analytics by event later.
+          Leave blank to clear.
+        </p>
+        <input
+          class="name-input"
+          type="text"
+          placeholder="e.g. Birthday Party, Friday Night…"
+          [(ngModel)]="eventNameDraft"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="words"
+          spellcheck="false"
+          enterkeyhint="done"
+          (keydown.enter)="saveEventName()"
+        />
+        <button class="name-submit-btn" (click)="saveEventName()">
+          Save Event
+        </button>
       </div>
 
     </div>

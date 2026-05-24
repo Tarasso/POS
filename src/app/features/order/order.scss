@@ -49,6 +49,80 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* ── Event banner (inside the menu-view header) ──────────────────────────── */
+
+.event-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 9999px;
+  padding: 0.25rem 0.625rem 0.25rem 0.5rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 14rem;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+
+  &:active { background: #e2e8f0; }
+}
+
+.event-label {
+  font-weight: 600;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.event-name-text {
+  font-weight: 500;
+  color: #1e293b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-unset {
+  color: #64748b;
+  font-style: italic;
+}
+
+.event-edit-icon {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+/* ── Event name sheet ────────────────────────────────────────────────────── */
+
+.event-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 1.25rem 1.25rem 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
+  z-index: 110;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: sheet-slide-up 0.22s ease;
+}
+
+.event-sheet-body {
+  padding: 0 1.25rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.event-sheet-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.5;
+}
+
 /* ── Menu + category views ───────────────────────────────────────────────── */
 
 .menu-view,

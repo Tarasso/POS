@@ -38,6 +38,9 @@ export class Order implements OnInit {
   get customerName(): string { return this.orderService.customerName(); }
   set customerName(value: string) { this.orderService.customerName.set(value); }
 
+  // ── Event name (exposed for template) ────────────────────────────────────
+  readonly eventName = this.orderService.eventName;
+
   // ── View state ────────────────────────────────────────────────────────────
   readonly currentView = signal<View>('menu');
   readonly selectedCategory = signal<CategoryWithItems | null>(null);
@@ -45,6 +48,12 @@ export class Order implements OnInit {
   // ── Sheet state ───────────────────────────────────────────────────────────
   readonly showCartPreview = signal(false);
   readonly showNamePrompt = signal(false);
+  readonly showEventSheet = signal(false);
+
+  // ── Event sheet draft ─────────────────────────────────────────────────────
+  private readonly _eventNameDraft = signal('');
+  get eventNameDraft(): string { return this._eventNameDraft(); }
+  set eventNameDraft(v: string) { this._eventNameDraft.set(v); }
 
   /** Template ref for the name input so we can programmatically focus it. */
   @ViewChild('nameInput') private nameInputRef?: ElementRef<HTMLInputElement>;
@@ -234,6 +243,19 @@ export class Order implements OnInit {
   }
 
   retryLoadMenu(): void { this.menuService.loadMenu(); }
+
+  // ── Event name sheet ──────────────────────────────────────────────────────
+  openEventSheet(): void {
+    this._eventNameDraft.set(this.orderService.eventName());
+    this.showEventSheet.set(true);
+  }
+
+  saveEventName(): void {
+    this.orderService.setEventName(this._eventNameDraft());
+    this.showEventSheet.set(false);
+  }
+
+  closeEventSheet(): void { this.showEventSheet.set(false); }
 
   startNewOrder(): void {
     this.orderService.resetAfterConfirmation();

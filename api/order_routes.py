@@ -140,6 +140,9 @@ def create_order(req: func.HttpRequest) -> func.HttpResponse:
             "modifiers": modifiers,
         })
 
+    # ── Optional event name ───────────────────────────────────────────────────
+    event_name: str | None = (body.get("eventName") or "").strip() or None
+
     # ── Compute total ─────────────────────────────────────────────────────────
     total = round(sum(i["price"] * i["qty"] for i in validated_items), 2)
 
@@ -152,6 +155,7 @@ def create_order(req: func.HttpRequest) -> func.HttpResponse:
         "total": total,
         "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "completedAt": None,
+        "eventName": event_name,   # None when no event is active; omitted from JSON if null
     }
 
     try:
