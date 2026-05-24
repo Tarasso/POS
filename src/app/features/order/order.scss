@@ -493,6 +493,30 @@
   font-size: 0.9375rem;
 }
 
+.error-banner-with-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.btn-text-action {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 0.375rem;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+
+  &:active {
+    opacity: 0.7;
+  }
+}
+
 .state-msg {
   color: #6b7280;
   text-align: center;

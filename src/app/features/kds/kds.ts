@@ -1,4 +1,5 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { KdsService } from '../../core/services/kds.service';
 
 @Component({
@@ -10,6 +11,7 @@ import { KdsService } from '../../core/services/kds.service';
 })
 export class Kds implements OnInit, OnDestroy {
   private kdsService = inject(KdsService);
+  private doc = inject(DOCUMENT);
 
   // ── Expose service state to template ──────────────────────────────────────
   readonly orders = this.kdsService.orders;
@@ -24,6 +26,10 @@ export class Kds implements OnInit, OnDestroy {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   ngOnInit(): void {
+    // Swap manifest so "Add to Home Screen" on iPad captures /kds as start URL.
+    const link = this.doc.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (link) link.href = '/manifest-kds.webmanifest';
+
     this.kdsService.loadOrders();
     this.kdsService.connect();
     // Tick every second; templates call elapsedDisplay/urgencyClass which read
@@ -32,6 +38,10 @@ export class Kds implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Restore default manifest when navigating away from the KDS route.
+    const link = this.doc.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (link) link.href = '/manifest.webmanifest';
+
     this.kdsService.disconnect();
     if (this.tickInterval) {
       clearInterval(this.tickInterval);
@@ -43,6 +53,12 @@ export class Kds implements OnInit, OnDestroy {
 
   completeOrder(orderId: string): void {
     this.kdsService.completeOrder(orderId);
+  }
+
+  /** Manually reconnect after a permanent SignalR failure. */
+  reconnect(): void {
+    this.kdsService.disconnect(); // nulls the hub connection reference
+    this.kdsService.connect();    // starts a fresh connection
   }
 
   // ── Timer helpers ─────────────────────────────────────────────────────────

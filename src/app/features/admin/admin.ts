@@ -41,10 +41,11 @@ interface ModifierOptionForm {
 export class Admin implements OnInit {
   private menuService = inject(MenuService);
 
-  readonly menu    = this.menuService.menu;
-  readonly loading = this.menuService.loading;
-  readonly error   = this.menuService.error;
-  readonly saving  = signal(false);
+  readonly menu      = this.menuService.menu;
+  readonly loading   = this.menuService.loading;
+  readonly error     = this.menuService.error;
+  readonly saving    = signal(false);
+  readonly saveError = signal<string | null>(null);
 
   // ── Category UI state ──────────────────────────────────────────────────────
   readonly showAddCategory    = signal(false);
@@ -87,10 +88,11 @@ export class Admin implements OnInit {
   saveNewCategory(): void {
     const { name, sortOrder } = this.categoryForm;
     if (!name.trim()) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.createCategory({ name: name.trim(), sortOrder }).subscribe({
       next: () => { this.showAddCategory.set(false); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
@@ -104,10 +106,11 @@ export class Admin implements OnInit {
     if (!cat) return;
     const { name, sortOrder } = this.editCategoryForm;
     if (!name.trim()) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.updateCategory(cat.id, { name: name.trim(), sortOrder }).subscribe({
       next: () => { this.editingCategory.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
@@ -120,10 +123,11 @@ export class Admin implements OnInit {
   saveNewItem(): void {
     const { name, categoryId, price, sortOrder } = this.itemForm;
     if (!name.trim() || price === null) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.createItem({ name: name.trim(), categoryId, price, sortOrder }).subscribe({
       next: () => { this.addingItemToCatId.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
@@ -137,10 +141,11 @@ export class Admin implements OnInit {
     if (!item) return;
     const { name, categoryId, price, sortOrder } = this.editItemForm;
     if (!name.trim() || price === null) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.updateItem(item.id, { name: name.trim(), categoryId, price: price!, sortOrder }).subscribe({
       next: () => { this.editingItem.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
@@ -160,6 +165,7 @@ export class Admin implements OnInit {
   saveNewGroup(): void {
     if (!this.groupForm.name.trim()) return;
     const max = this.groupForm.maxUnlimited ? null : this.groupForm.maxSelections;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.createModifierGroup({
       name: this.groupForm.name.trim(),
@@ -168,7 +174,7 @@ export class Admin implements OnInit {
       sortOrder: this.groupForm.sortOrder,
     }).subscribe({
       next: () => { this.showAddGroup.set(false); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
@@ -187,6 +193,7 @@ export class Admin implements OnInit {
     const group = this.editingGroup();
     if (!group || !this.editGroupForm.name.trim()) return;
     const max = this.editGroupForm.maxUnlimited ? null : this.editGroupForm.maxSelections;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.updateModifierGroup(group.id, {
       name: this.editGroupForm.name.trim(),
@@ -195,16 +202,17 @@ export class Admin implements OnInit {
       sortOrder: this.editGroupForm.sortOrder,
     }).subscribe({
       next: () => { this.editingGroup.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
   deleteGroup(group: ModifierGroupWithOptions): void {
     if (!confirm(`Delete "${group.name}" and all its options? Items assigned to this group will be unassigned.`)) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.deleteModifierGroup(group.id).subscribe({
       next: () => this.saving.set(false),
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Delete failed. Please try again.'); },
     });
   }
 
@@ -218,6 +226,7 @@ export class Admin implements OnInit {
   saveNewOption(): void {
     const groupId = this.addingOptToGrpId();
     if (!groupId || !this.optionForm.name.trim()) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.createModifierOption({
       groupId,
@@ -227,7 +236,7 @@ export class Admin implements OnInit {
       sortOrder: this.optionForm.sortOrder,
     }).subscribe({
       next: () => { this.addingOptToGrpId.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
@@ -244,6 +253,7 @@ export class Admin implements OnInit {
   saveEditOption(): void {
     const option = this.editingOption();
     if (!option || !this.editOptionForm.name.trim()) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.updateModifierOption(option.id, {
       name: this.editOptionForm.name.trim(),
@@ -252,16 +262,17 @@ export class Admin implements OnInit {
       sortOrder: this.editOptionForm.sortOrder,
     }).subscribe({
       next: () => { this.editingOption.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 
   deleteOption(option: ModifierOption): void {
     if (!confirm(`Delete option "${option.name}"?`)) return;
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.deleteModifierOption(option.id).subscribe({
       next: () => this.saving.set(false),
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Delete failed. Please try again.'); },
     });
   }
 
@@ -319,10 +330,11 @@ export class Admin implements OnInit {
       return;
     }
 
+    this.saveError.set(null);
     this.saving.set(true);
     this.menuService.assignModifierGroup(groupId, { add, remove }).subscribe({
       next: () => { this.assigningGroupId.set(null); this.saving.set(false); },
-      error: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Save failed. Please try again.'); },
     });
   }
 

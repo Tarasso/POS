@@ -7,7 +7,8 @@
     </div>
   } @else if (connectionState() === 'error' || connectionState() === 'disconnected') {
     <div class="kds-status-bar status-error">
-      ⚠ Connection lost — new orders may not appear automatically
+      <span>⚠ Connection lost — new orders may not appear automatically</span>
+      <button class="reconnect-btn" (click)="reconnect()">Reconnect</button>
     </div>
   }
 

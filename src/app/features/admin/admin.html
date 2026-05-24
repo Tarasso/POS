@@ -9,6 +9,9 @@
   @if (error()) {
     <div class="error-banner">{{ error() }}</div>
   }
+  @if (saveError()) {
+    <div class="error-banner">{{ saveError() }}</div>
+  }
   @if (loading() && !menu()) {
     <p class="loading">Loading menu…</p>
   }

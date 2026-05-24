@@ -182,7 +182,7 @@ Build strictly in this order. Each phase ships working end-to-end before the nex
 - **Phase 2**: ✅ Order taking — category tiles → item tiles → modifier selection → cart → order POST; modifier system (groups/options CRUD + bulk assignment); global nav bar
 - **Phase 3**: ✅ KDS — SignalR setup, order cards, live timer, complete action
 - **Phase 4**: ✅ Analytics — aggregation queries, dashboard
-- **Phase 5**: Polish — real-device PWA install testing, empty states, error handling
+- **Phase 5**: ✅ Polish — PWA dual-manifest install, safe-area CSS, error recovery affordances, SW update + offline banners
 
 > **Auth** (shipped between Phase 4 and 5): SWA built-in auth with Entra ID (Microsoft). Role-based access via Azure Portal invitations. See **Security** section.
 
@@ -410,6 +410,40 @@ Authentication is enforced at the **Azure CDN layer** — unauthenticated reques
 `swa start` serves a mock auth form at `http://localhost:4280/.auth/login/aad`. Fill in any name/email and type `staff` in the roles field. No real Microsoft account needed.
 
 **Azure Functions `AuthLevel.ANONYMOUS` is intentional** — the SWA CDN blocks unauthenticated traffic before it ever reaches the function runtime. The auth level setting only affects direct Function URL access, which is not exposed here.
+
+## Phase 5 Outcomes
+
+### What was built
+
+**PWA install improvements**
+- **`public/manifest.webmanifest`** — `theme_color` updated to `#1e293b` (matches dark nav bar); `start_url` changed to `/order`; name/short_name changed to "POS – Order" / "Order"
+- **`public/manifest-kds.webmanifest`** — new manifest for iPad KDS install: `start_url: "/kds"`, name "POS – KDS" / "KDS", same icons
+- **`src/app/features/kds/kds.ts`** — injects `DOCUMENT`; on `ngOnInit` swaps `<link rel="manifest">` to `manifest-kds.webmanifest`; on `ngOnDestroy` restores the default manifest. This means "Add to Home Screen" from the `/kds` route creates an iPad PWA that launches straight at `/kds`.
+- **`src/index.html`** — added `viewport-fit=cover` to viewport meta so content fills edge-to-edge on notched iPhones (required for `black-translucent` status bar)
+- **`src/app/app.ts`** — nav bar height and `app-content` padding-top both use `calc(2.75rem + env(safe-area-inset-top, 0px))` so the nav never overlaps the status bar on notched devices; falls back gracefully to `0px` on older devices/browsers
+
+**Error recovery affordances**
+- **`src/app/features/order/order.html`** — menu-load error banner now includes a **Retry** button
+- **`src/app/features/order/order.ts`** — added `retryLoadMenu()` that calls `menuService.loadMenu()`
+- **`src/app/features/order/order.scss`** — added `.error-banner-with-action` (flex row) and `.btn-text-action` (outlined inline button)
+- **`src/app/features/kds/kds.html`** — "Connection lost" status bar now includes a **Reconnect** button
+- **`src/app/features/kds/kds.ts`** — added `reconnect()` method: calls `disconnect()` then `connect()` for a clean restart
+- **`src/app/features/kds/kds.scss`** — `.kds-status-bar` is now `display: flex; justify-content: space-between`; added `.reconnect-btn` style
+
+**Admin silent-failure fix**
+- **`src/app/features/admin/admin.ts`** — added `saveError = signal<string | null>(null)`; all 9 save/delete callbacks now set this signal on error (previously they silently reset `saving` with no user feedback); each attempt clears the previous error
+- **`src/app/features/admin/admin.html`** — `@if (saveError())` banner rendered below the menu-load error banner
+
+**PWA reliability**
+- **`src/app/app.ts`** — subscribes to `SwUpdate.versionUpdates` (production only, guarded by `swUpdate.isEnabled`); shows a blue "↻ App updated — tap to refresh" banner on `VersionReadyEvent`; `applyUpdate()` calls `activateUpdate()` then reloads
+- **`src/app/app.ts`** — listens to `window` `online`/`offline` events via `fromEvent` + `takeUntilDestroyed`; shows an amber "You're offline — orders can't be placed" banner; clears automatically when network returns
+
+### Phase 5 Gotchas
+
+19. **Dynamic manifest swap must happen in `ngOnInit`/`ngOnDestroy`** — the browser reads `<link rel="manifest">` at install time, not at page load. Swapping the href client-side when the user lands on `/kds` is sufficient because iOS only reads the manifest when "Add to Home Screen" is tapped.
+20. **`env(safe-area-inset-top)` with `padding` shorthand breaks the nav** — the `.app-nav` already used `padding: 0 1rem` shorthand. Adding `padding-top: env(...)` after the shorthand would be overridden. Fix: use `padding-left`/`padding-right`/`padding-top` longhand properties separately.
+21. **`SwUpdate` is `null` in dev mode** — `swUpdate.isEnabled` returns `false` when the service worker is not registered (local dev). Always guard SW code with `if (swUpdate.isEnabled)` to avoid runtime errors.
+22. **`withAutomaticReconnect()` exhausts its retry budget after ~2 minutes of failure** — after that the hub enters a permanently `Disconnected` state and `onclose` fires. The manual Reconnect button handles this case by calling `disconnect()` (nulls `hubConnection`) then `connect()` to start a fresh connection.
 
 ## Not in Scope
 - Tax, payments, multi-tenant, push notifications, order editing

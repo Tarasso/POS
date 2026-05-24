@@ -191,6 +191,8 @@ export class Order implements OnInit {
 
   submitOrder(): void { this.orderService.submitOrder(); }
 
+  retryLoadMenu(): void { this.menuService.loadMenu(); }
+
   startNewOrder(): void {
     this.orderService.resetAfterConfirmation();
     this.currentView.set('menu');

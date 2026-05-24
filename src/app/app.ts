@@ -1,5 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import { fromEvent, merge } from 'rxjs';
+import { filter, map } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-root',
@@ -16,6 +20,17 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
         <a class="nav-link nav-link-signout" href="/.auth/logout">Sign out</a>
       </div>
     </nav>
+
+    @if (updateAvailable()) {
+      <div class="update-banner" (click)="applyUpdate()">
+        ↻ App updated — tap to refresh
+      </div>
+    }
+
+    @if (isOffline()) {
+      <div class="offline-banner">You're offline — orders can't be placed</div>
+    }
+
     <div class="app-content">
       <router-outlet />
     </div>
@@ -30,12 +45,14 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
       top: 0;
       left: 0;
       right: 0;
-      height: 2.75rem;
+      height: calc(2.75rem + env(safe-area-inset-top, 0px));
+      padding-top: env(safe-area-inset-top, 0px);
       z-index: 50;
       background: #1e293b;
       display: flex;
       align-items: center;
-      padding: 0 1rem;
+      padding-left: 1rem;
+      padding-right: 1rem;
       gap: 1rem;
     }
 
@@ -81,8 +98,54 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
     }
 
     .app-content {
-      padding-top: 2.75rem;
+      padding-top: calc(2.75rem + env(safe-area-inset-top, 0px));
+    }
+
+    .update-banner {
+      background: #0ea5e9;
+      color: #fff;
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.5rem;
+      cursor: pointer;
+      z-index: 49;
+    }
+
+    .offline-banner {
+      background: #b45309;
+      color: #fff;
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.375rem;
     }
   `],
 })
-export class App {}
+export class App {
+  readonly updateAvailable = signal(false);
+  readonly isOffline = signal(!navigator.onLine);
+
+  private readonly swUpdate = inject(SwUpdate);
+
+  constructor() {
+    // ── SW update notification ──────────────────────────────────────────────
+    if (this.swUpdate.isEnabled) {
+      this.swUpdate.versionUpdates
+        .pipe(filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY'))
+        .subscribe(() => this.updateAvailable.set(true));
+    }
+
+    // ── Offline / online detection ──────────────────────────────────────────
+    const destroyRef = inject(DestroyRef);
+    merge(
+      fromEvent(window, 'online').pipe(map(() => false)),
+      fromEvent(window, 'offline').pipe(map(() => true)),
+    ).pipe(takeUntilDestroyed(destroyRef))
+      .subscribe(offline => this.isOffline.set(offline));
+  }
+
+  applyUpdate(): void {
+    this.swUpdate.activateUpdate().then(() => window.location.reload());
+  }
+}
