@@ -15,8 +15,10 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import azure.functions as func
+from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
 from cosmos_helper import get_orders_container
+from signalr_helper import broadcast_order_completed, broadcast_order_created
 
 order_bp = func.Blueprint()
 logger = logging.getLogger(__name__)
@@ -155,15 +157,73 @@ def create_order(req: func.HttpRequest) -> func.HttpResponse:
     try:
         get_orders_container().create_item(body=doc)
         logger.info("Created order %s for '%s' (total=%.2f)", doc["id"], customer_name, total)
+        broadcast_order_created(doc)  # fire-and-forget; never blocks the response
         return _json_response(doc, 201)
     except Exception:
         logger.exception("Failed to create order")
         return _error("Failed to save order.", 500)
 
 
-# ── PATCH /api/orders/{id}/complete — Phase 3 stub ────────────────────────────
+# ── PATCH /api/orders/{id}/complete ───────────────────────────────────────────
 
 @order_bp.route(route="orders/{id}/complete", methods=["PATCH"])
 def complete_order(req: func.HttpRequest) -> func.HttpResponse:
-    """Phase 3 stub — delete+insert partition-key change + SignalR broadcast added in Phase 3."""
-    return _error("Not implemented — Phase 3 feature.", 501)
+    """
+    Mark an order as completed.
+
+    Cosmos doesn't allow in-place partition-key updates, so we:
+      1. Read the doc from the 'open' partition.
+      2. Insert a new doc into the 'completed' partition.
+      3. Delete the original from 'open'.
+      4. Broadcast 'orderCompleted' via SignalR.
+
+    Create-before-delete is intentional: if delete fails after a successful
+    create, the order appears in both partitions. For this low-volume app
+    that's an acceptable edge case — log it and return 200 rather than
+    attempting a rollback.
+    """
+    order_id: str = req.route_params.get("id", "").strip()
+    if not order_id:
+        return _error("Order ID is required.", 400)
+
+    container = get_orders_container()
+
+    # ── 1. Read existing open order ───────────────────────────────────────────
+    try:
+        existing = container.read_item(item=order_id, partition_key="open")
+    except CosmosResourceNotFoundError:
+        return _error("Order not found or already completed.", 404)
+    except Exception:
+        logger.exception("Failed to read order %s", order_id)
+        return _error("Failed to retrieve order.", 500)
+
+    # ── 2. Build completed document ───────────────────────────────────────────
+    completed_doc = {
+        **existing,
+        "status": "completed",
+        "completedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    }
+
+    # ── 3. Insert into 'completed' partition ──────────────────────────────────
+    try:
+        container.create_item(body=completed_doc)
+    except Exception:
+        logger.exception("Failed to insert completed order %s", order_id)
+        return _error("Failed to complete order.", 500)
+
+    # ── 4. Delete from 'open' partition ───────────────────────────────────────
+    try:
+        container.delete_item(item=order_id, partition_key="open")
+    except Exception:
+        # Non-fatal: the order was already written to 'completed'. Log and move on.
+        logger.exception(
+            "Completed order %s was written but failed to delete from 'open' partition — "
+            "may appear in both partitions; clean up manually if needed.",
+            order_id,
+        )
+
+    # ── 5. Broadcast via SignalR ───────────────────────────────────────────────
+    broadcast_order_completed(order_id)  # fire-and-forget
+
+    logger.info("Completed order %s", order_id)
+    return _json_response({"orderId": order_id}, 200)

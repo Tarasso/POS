@@ -180,7 +180,7 @@ Build strictly in this order. Each phase ships working end-to-end before the nex
 - **Phase 0**: ✅ Scaffolding — Angular + `@angular/pwa`, Functions Python app, Azure resources created, hello world deployed
 - **Phase 1**: ✅ Menu management — Cosmos schema, menu CRUD API, admin UI, sold-out toggle
 - **Phase 2**: ✅ Order taking — category tiles → item tiles → modifier selection → cart → order POST; modifier system (groups/options CRUD + bulk assignment); global nav bar
-- **Phase 3**: KDS — SignalR setup, order cards, live timer, complete action
+- **Phase 3**: ✅ KDS — SignalR setup, order cards, live timer, complete action
 - **Phase 4**: Analytics — aggregation queries, dashboard
 - **Phase 5**: Polish — real-device PWA install testing, empty states, error handling
 
@@ -333,6 +333,33 @@ $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\Stat
 & $bin upload --workdir . --app "dist/pos/browser" --api "api" `
   --apiToken <token> --skipAppBuild true --skipApiBuild true --configFileLocation "."
 ```
+
+## Phase 3 Outcomes
+
+### What was built
+
+**API**
+- **`api/signalr_helper.py`** — new module; all SignalR logic in one place:
+  - `get_client_connection_info()` — generates `{ url, accessToken }` for the KDS WebSocket client; token TTL 1 hour
+  - `broadcast_order_created(order_doc)` / `broadcast_order_completed(order_id)` — POST to Azure SignalR Management REST API with a short-lived (30 s) JWT
+  - `_parse_connection_string()` / `_make_token()` — shared helpers
+- **`api/function_app.py`** — added `POST /api/negotiate`; calls `get_client_connection_info()` directly (no Azure Functions binding — see gotcha #14)
+- **`api/order_routes.py`** — `complete_order` fully implemented: read from "open" partition → create in "completed" partition → delete from "open" → broadcast `orderCompleted`; `create_order` now calls `broadcast_order_created` after a successful Cosmos insert
+- **`api/requirements.txt`** — added `PyJWT>=2.8.0`
+
+**Frontend**
+- **`src/app/core/services/kds.service.ts`** — new service; `orders`, `connectionState`, `completing` signals; `loadOrders()` (initial HTTP fetch), `connect()` / `disconnect()` (SignalR lifecycle with `withAutomaticReconnect`), `completeOrder()` (HTTP PATCH → remove from signal on success; SignalR `orderCompleted` event is idempotent)
+- **`src/app/features/kds/kds.ts`** — full component; 1-second `tick` signal drives `elapsedDisplay()` ("3m 42s") and `urgencyClass()` without RxJS
+- **`src/app/features/kds/kds.html`** — connection status bar, empty state, auto-fill card grid; each card: customer name, live timer, item + modifier list, Done button with in-flight loading state
+- **`src/app/features/kds/kds.scss`** — 2-column `auto-fill` grid, urgency border/background at 8 min (yellow) and 15 min (red), 3.5 rem Done button for iPad touch targets
+
+### Phase 3 Gotchas
+
+14. **`signalRConnectionInfo` input binding does not work with the local Python 3.13 worker** — the bundled `func.exe` worker silently drops injected binding arguments (same root cause as gotcha #6). Implemented `negotiate` as a plain HTTP function that calls `signalr_helper.get_client_connection_info()` instead; this works identically locally and in Azure with no extension bundle dependency.
+15. **`@microsoft/signalr` HubConnectionBuilder appends `/negotiate`** — pass `'/api'` as the base URL (`.withUrl('/api')`); the SDK will POST to `/api/negotiate` automatically. Do NOT pass `'/api/negotiate'` — that would POST to `/api/negotiate/negotiate`.
+16. **Cosmos partition-key change on complete** — Cosmos does not allow in-place partition-key updates. The complete flow must create the new doc first (in the "completed" partition), then delete the old one (from "open"). If delete fails after create, the order exists in both partitions; acceptable for this low-volume app — log and return 200, clean up manually if needed.
+17. **`signal<Set<string>>` requires a new Set reference** — Angular change detection compares by reference. Use `new Set([...s, id])` and `new Set(s)` with `.delete()` rather than mutating in place.
+18. **SignalR broadcasts reach Azure directly from `func start`** — there is no local SignalR emulator. Broadcasts hit the real `signalr-pos-kylem.service.signalr.net` endpoint even during local development. The KDS Angular client also connects directly to Azure SignalR (the negotiate response contains the Azure URL); this goes through the client's network, not through the SWA CLI proxy.
 
 ## Not in Scope
 - Tax, payments, multi-tenant, user auth (v1), push notifications, order editing

@@ -1,1 +1,85 @@
-<p>kds works!</p>
+<div class="kds-page">
+
+  <!-- ── Connection status bar ─────────────────────────────────────────────── -->
+  @if (connectionState() === 'connecting') {
+    <div class="kds-status-bar status-connecting">
+      Connecting to live updates…
+    </div>
+  } @else if (connectionState() === 'error' || connectionState() === 'disconnected') {
+    <div class="kds-status-bar status-error">
+      ⚠ Connection lost — new orders may not appear automatically
+    </div>
+  }
+
+  <!-- ── Load error banner ─────────────────────────────────────────────────── -->
+  @if (loadError()) {
+    <div class="kds-status-bar status-error">
+      {{ loadError() }}
+    </div>
+  }
+
+  <!-- ── Empty state ───────────────────────────────────────────────────────── -->
+  @if (orders().length === 0 && connectionState() === 'connected' && !loadError()) {
+    <div class="kds-empty">
+      <span class="kds-empty-icon">🍽</span>
+      <p>No open orders</p>
+    </div>
+  }
+
+  <!-- ── Order card grid ───────────────────────────────────────────────────── -->
+  <div class="kds-grid">
+    @for (order of orders(); track order.id) {
+      <div
+        class="order-card"
+        [class.urgent-yellow]="urgencyClass(order.createdAt) === 'urgent-yellow'"
+        [class.urgent-red]="urgencyClass(order.createdAt) === 'urgent-red'"
+      >
+        <!-- Card header: customer name + live timer -->
+        <div class="card-header">
+          <span class="card-name">{{ order.customerName }}</span>
+          <span
+            class="card-timer"
+            [class.timer-warning]="urgencyClass(order.createdAt) === 'urgent-yellow'"
+            [class.timer-urgent]="urgencyClass(order.createdAt) === 'urgent-red'"
+          >{{ elapsedDisplay(order.createdAt) }}</span>
+        </div>
+
+        <!-- Item list with modifiers -->
+        <ul class="card-items">
+          @for (item of order.items; track item.itemId) {
+            <li class="card-item">
+              <div class="item-row">
+                <span class="item-qty">{{ item.qty }}×</span>
+                <span class="item-name">{{ item.name }}</span>
+              </div>
+              @if (item.modifiers.length > 0) {
+                <ul class="item-mods">
+                  @for (mod of item.modifiers; track mod.optionId) {
+                    <li>
+                      {{ mod.optionName }}@if (mod.customText) {<span class="mod-custom"> — {{ mod.customText }}</span>}
+                    </li>
+                  }
+                </ul>
+              }
+            </li>
+          }
+        </ul>
+
+        <!-- Done button -->
+        <button
+          class="complete-btn"
+          [class.completing]="completing().has(order.id)"
+          [disabled]="completing().has(order.id)"
+          (click)="completeOrder(order.id)"
+        >
+          @if (completing().has(order.id)) {
+            Completing…
+          } @else {
+            Done ✓
+          }
+        </button>
+      </div>
+    }
+  </div>
+
+</div>

@@ -1,0 +1,202 @@
+// ── KDS Page ─────────────────────────────────────────────────────────────────
+
+.kds-page {
+  min-height: 100dvh;
+  background: #f1f5f9;
+  font-family: system-ui, -apple-system, sans-serif;
+  // Account for the fixed global nav bar (2.75rem)
+  padding-top: 2.75rem;
+}
+
+// ── Status / error banners ────────────────────────────────────────────────────
+
+.kds-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+
+  &.status-connecting {
+    background: #fef9c3;
+    color: #713f12;
+  }
+
+  &.status-error {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+.kds-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 1rem;
+  gap: 0.75rem;
+  color: #94a3b8;
+
+  .kds-empty-icon {
+    font-size: 3rem;
+    line-height: 1;
+  }
+
+  p {
+    margin: 0;
+    font-size: 1.125rem;
+  }
+}
+
+// ── Card grid ─────────────────────────────────────────────────────────────────
+
+.kds-grid {
+  display: grid;
+  // Auto-fill; iPad landscape fits 2–3 cards side-by-side naturally
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  padding: 1rem;
+  align-items: start; // cards don't stretch to match the tallest sibling
+}
+
+// ── Order card ────────────────────────────────────────────────────────────────
+
+.order-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  border: 2px solid #e2e8f0;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: border-color 0.3s ease, background-color 0.3s ease;
+
+  // 8–14 min: yellow warning
+  &.urgent-yellow {
+    border-color: #fbbf24;
+    background: #fffbeb;
+  }
+
+  // ≥ 15 min: red urgent
+  &.urgent-red {
+    border-color: #ef4444;
+    background: #fef2f2;
+  }
+}
+
+// ── Card header ───────────────────────────────────────────────────────────────
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.card-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+  // Truncate very long names with an ellipsis
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-timer {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+
+  &.timer-warning { color: #d97706; }
+  &.timer-urgent  { color: #dc2626; }
+}
+
+// ── Item list ─────────────────────────────────────────────────────────────────
+
+.card-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  // Grow to push the Done button to the bottom of the card
+  flex: 1;
+}
+
+.card-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.item-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+.item-qty {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #374151;
+  min-width: 1.75rem;
+  flex-shrink: 0;
+}
+
+.item-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.item-mods {
+  list-style: none;
+  margin: 0.125rem 0 0;
+  padding-left: 2.125rem; // aligns under item name (past the qty column)
+
+  li {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    line-height: 1.4;
+  }
+}
+
+.mod-custom {
+  font-style: italic;
+}
+
+// ── Done button ───────────────────────────────────────────────────────────────
+
+.complete-btn {
+  margin-top: 0.25rem;
+  width: 100%;
+  height: 3.5rem; // large touch target for iPad
+  background: #16a34a;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.625rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s ease, opacity 0.12s ease;
+
+  &:active:not(:disabled) {
+    background: #15803d;
+  }
+
+  &:disabled,
+  &.completing {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
