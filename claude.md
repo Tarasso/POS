@@ -163,11 +163,11 @@ Angular CLI 21 drops `.component` from all generated filenames. This affects eve
 
 ### Gotchas
 1. **South Central US had no Cosmos DB capacity** — fell back to Central US.
-2. **`swa deploy` CLI wrapper is broken on Windows (v2.0.9).** Call the binary directly:
+2. **`swa deploy` CLI wrapper is broken on Windows (v2.0.9).** Call the binary directly. **`--configFileLocation "."` is required** so the tool finds `staticwebapp.config.json` and knows the API runtime is Python 3.11 — omitting it causes "Function language info isn't provided" error:
    ```powershell
    $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\StaticSitesClient.exe"
    & $bin upload --workdir . --app "dist/pos/browser" --api "api" `
-     --apiToken <token> --skipAppBuild true --skipApiBuild true
+     --apiToken <token> --skipAppBuild true --skipApiBuild true --configFileLocation "."
    ```
 3. **`--skipApiBuild true` is required** — Oryx (the API build tool inside StaticSitesClient) is Linux-only and crashes on Windows. Azure installs Python packages server-side from `requirements.txt`.
 4. **`func start` needs the Python 3.11 venv in PATH** — system default is 3.13, which the Functions runtime rejects. Run from `/api` with:
