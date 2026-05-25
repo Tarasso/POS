@@ -1,6 +1,14 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { DOCUMENT, DatePipe } from '@angular/common';
 import { KdsService } from '../../core/services/kds.service';
+import { AppliedModifier } from '../../core/models/order.models';
+
+/** One row in the grouped modifier display — all options from one modifier group. */
+export interface ModGroupRow {
+  groupId: string;
+  groupName: string;
+  mods: AppliedModifier[];
+}
 
 @Component({
   selector: 'app-kds',
@@ -137,6 +145,28 @@ export class Kds implements OnInit, OnDestroy {
       }, this.DOUBLE_TAP_MS);
       this.firstTapTimers.set(orderId, timer);
     }
+  }
+
+  // ── Modifier grouping ─────────────────────────────────────────────────────
+
+  /**
+   * Groups a flat AppliedModifier array by modifier group, preserving the order
+   * the groups appear in (which matches the group sortOrder set at order time).
+   * Each group becomes one row of pills on the KDS card.
+   *
+   * Works for any number of groups/options — scales automatically.
+   */
+  modsByGroup(modifiers: AppliedModifier[]): ModGroupRow[] {
+    const seen: string[] = [];
+    const map = new Map<string, ModGroupRow>();
+    for (const mod of modifiers) {
+      if (!map.has(mod.groupId)) {
+        seen.push(mod.groupId);
+        map.set(mod.groupId, { groupId: mod.groupId, groupName: mod.groupName, mods: [] });
+      }
+      map.get(mod.groupId)!.mods.push(mod);
+    }
+    return seen.map(id => map.get(id)!);
   }
 
   // ── Modifier pill helpers ──────────────────────────────────────────────────

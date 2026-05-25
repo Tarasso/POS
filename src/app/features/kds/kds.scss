@@ -192,14 +192,21 @@
 }
 
 // ── Modifier pills ────────────────────────────────────────────────────────────
-// Displayed as a flex-wrap row of colour-coded chips so they pop visually
-// at a glance in a busy kitchen environment.
+// Each modifier *group* renders as its own row of pills so groups never mix.
+// E.g. line 1 = Hot/Cold, line 2 = Milk type, line 3 = Syrups, etc.
+// Scales automatically: any number of groups → that many rows.
 
-.item-mods {
+.item-mods-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding-left: 2.125rem; // aligns under item name (past the qty column)
+}
+
+.item-mods-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
-  padding-left: 2.125rem; // aligns under item name (past the qty column)
 }
 
 .mod-pill {
@@ -459,11 +466,18 @@
   color: #111827;
 }
 
-.co-mods {
+// History panel: same per-group-row layout, compact sizing.
+.co-mods-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 1rem;
+}
+
+.co-mods-row {
   display: flex;
   flex-wrap: wrap;
   gap: 0.3rem;
-  padding-left: 1rem;
 }
 
 .co-mod-pill {

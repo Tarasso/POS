@@ -112,7 +112,12 @@
 
         <header class="view-header">
           <button class="btn-back" (click)="cancelModify()">‹ Back</button>
-          <h1 class="view-title">{{ item.name }}</h1>
+          <h1 class="view-title">
+            {{ item.name }}
+            @if (editingCartLineId()) {
+              <span class="editing-badge">Editing</span>
+            }
+          </h1>
         </header>
 
         <div class="modifiers-scroll">
@@ -157,7 +162,7 @@
             [disabled]="!canAddToCart()"
             (click)="addPendingToCart()"
           >
-            Add to Cart
+            @if (editingCartLineId()) { Update Cart } @else { Add to Cart }
           </button>
         </div>
 
@@ -214,6 +219,11 @@
                 <span class="cart-item-name">{{ item.name }}</span>
                 @if (item.modifiers.length > 0) {
                   <span class="cart-item-mods">{{ modifierSummary(item.modifiers) }}</span>
+                  <button
+                    class="edit-mods-btn"
+                    (click)="editCartItem(item.cartLineId)"
+                    aria-label="Edit modifiers"
+                  >✎ Edit</button>
                 }
               </div>
               <div class="qty-controls">

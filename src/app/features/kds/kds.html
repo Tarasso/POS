@@ -57,16 +57,21 @@
                 <span class="item-name">{{ item.name }}</span>
               </div>
               @if (item.modifiers.length > 0) {
-                <div class="item-mods">
-                  @for (mod of item.modifiers; track mod.optionId) {
-                    <span
-                      class="mod-pill"
-                      [style.background]="mod.color || null"
-                      [style.color]="mod.color ? modPillTextColor(mod.color) : null"
-                      [style.border-color]="mod.color ? 'transparent' : null"
-                    >
-                      {{ mod.optionName }}@if (mod.customText) {<span class="mod-custom-text">: {{ mod.customText }}</span>}
-                    </span>
+                <!-- Each modifier group gets its own flex-wrap row of pills -->
+                <div class="item-mods-groups">
+                  @for (grp of modsByGroup(item.modifiers); track grp.groupId) {
+                    <div class="item-mods-row">
+                      @for (mod of grp.mods; track mod.optionId) {
+                        <span
+                          class="mod-pill"
+                          [style.background]="mod.color || null"
+                          [style.color]="mod.color ? modPillTextColor(mod.color) : null"
+                          [style.border-color]="mod.color ? 'transparent' : null"
+                        >
+                          {{ mod.optionName }}@if (mod.customText) {<span class="mod-custom-text">: {{ mod.customText }}</span>}
+                        </span>
+                      }
+                    </div>
                   }
                 </div>
               }
@@ -129,14 +134,18 @@
                     <div class="co-item">
                       <span class="co-item-label">{{ item.qty }}× {{ item.name }}</span>
                       @if (item.modifiers.length > 0) {
-                        <div class="co-mods">
-                          @for (mod of item.modifiers; track mod.optionId) {
-                            <span
-                              class="co-mod-pill"
-                              [style.background]="mod.color || null"
-                              [style.color]="mod.color ? modPillTextColor(mod.color) : null"
-                              [style.border-color]="mod.color ? 'transparent' : null"
-                            >{{ mod.optionName }}@if (mod.customText) {: {{ mod.customText }}}</span>
+                        <div class="co-mods-groups">
+                          @for (grp of modsByGroup(item.modifiers); track grp.groupId) {
+                            <div class="co-mods-row">
+                              @for (mod of grp.mods; track mod.optionId) {
+                                <span
+                                  class="co-mod-pill"
+                                  [style.background]="mod.color || null"
+                                  [style.color]="mod.color ? modPillTextColor(mod.color) : null"
+                                  [style.border-color]="mod.color ? 'transparent' : null"
+                                >{{ mod.optionName }}@if (mod.customText) {: {{ mod.customText }}}</span>
+                              }
+                            </div>
                           }
                         </div>
                       }

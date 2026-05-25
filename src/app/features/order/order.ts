@@ -8,6 +8,13 @@ import { AppliedModifier, CartItem } from '../../core/models/order.models';
 
 type View = 'menu' | 'category' | 'modifiers';
 
+/** Modifier group row used in the cart modifier summary. */
+export interface ModGroup {
+  groupId: string;
+  groupName: string;
+  mods: AppliedModifier[];
+}
+
 @Component({
   selector: 'app-order',
   standalone: true,
@@ -64,6 +71,12 @@ export class Order implements OnInit {
   readonly pendingSelections = signal<Record<string, string[]>>({});
   /** optionId → custom text (only for allowsCustomText options) */
   readonly pendingCustomTexts = signal<Record<string, string>>({});
+
+  // ── Cart edit state ───────────────────────────────────────────────────────
+  /** Set to a cartLineId when editing an existing cart item; null when adding fresh. */
+  readonly editingCartLineId = signal<string | null>(null);
+  /** The view to return to after cancelling or completing an edit. */
+  private editReturnView: View | null = null;
 
   /** Modifier groups that apply to the item currently being configured. */
   readonly activeModifierGroups = computed<ModifierGroupWithOptions[]>(() => {
@@ -126,10 +139,66 @@ export class Order implements OnInit {
   }
 
   cancelModify(): void {
+    const wasEditing = this.editingCartLineId() !== null;
+    const returnView = this.editReturnView;
     this.pendingItem.set(null);
     this.pendingSelections.set({});
     this.pendingCustomTexts.set({});
-    this.currentView.set('category');
+    this.editingCartLineId.set(null);
+    this.editReturnView = null;
+    if (wasEditing) {
+      // Return to where the user was and re-open the cart so they see their item.
+      this.currentView.set(returnView ?? 'menu');
+      this.showCartPreview.set(true);
+    } else {
+      this.currentView.set('category');
+    }
+  }
+
+  /**
+   * Open the modifier view pre-populated with a cart item's current selections
+   * so the user can adjust modifiers ad-hoc before saving back to the cart.
+   * Only available for items that have at least one modifier group.
+   */
+  editCartItem(cartLineId: string): void {
+    const cartItem = this.cart().find(c => c.cartLineId === cartLineId);
+    if (!cartItem) return;
+
+    const tree = this.menu();
+    if (!tree) return;
+
+    // Locate the live menu item so we have the current group/option definitions.
+    const menuItem = tree.categories
+      .flatMap(cat => cat.items)
+      .find(i => i.id === cartItem.itemId);
+    if (!menuItem || (menuItem.modifierGroupIds ?? []).length === 0) return;
+
+    const groups = tree.modifierGroups.filter(g =>
+      (menuItem.modifierGroupIds ?? []).includes(g.id)
+    );
+    if (groups.length === 0) return;
+
+    // Reconstruct the selection map from the applied modifiers stored on the cart line.
+    const initial: Record<string, string[]> = {};
+    for (const group of groups) {
+      initial[group.id] = cartItem.modifiers
+        .filter(m => m.groupId === group.id)
+        .map(m => m.optionId);
+    }
+
+    // Reconstruct any custom texts.
+    const customTexts: Record<string, string> = {};
+    for (const mod of cartItem.modifiers) {
+      if (mod.customText) customTexts[mod.optionId] = mod.customText;
+    }
+
+    this.editingCartLineId.set(cartLineId);
+    this.editReturnView = this.currentView();
+    this.pendingItem.set(menuItem);
+    this.pendingSelections.set(initial);
+    this.pendingCustomTexts.set(customTexts);
+    this.showCartPreview.set(false);
+    this.currentView.set('modifiers');
   }
 
   toggleModifierOption(groupId: string, optionId: string, maxSelections: number | null): void {
@@ -185,8 +254,27 @@ export class Order implements OnInit {
       }
     }
 
-    this.orderService.addItem(item.id, item.name, item.price, modifiers);
-    this.cancelModify();
+    const editId = this.editingCartLineId();
+    const returnView = this.editReturnView;
+
+    // Clear pending state before updating signals (avoids stale reads).
+    this.pendingItem.set(null);
+    this.pendingSelections.set({});
+    this.pendingCustomTexts.set({});
+    this.editingCartLineId.set(null);
+    this.editReturnView = null;
+
+    if (editId) {
+      // Editing an existing cart line — replace its modifiers in-place.
+      this.orderService.updateItemModifiers(editId, modifiers);
+      // Return to the view the user came from and re-open the cart.
+      this.currentView.set(returnView ?? 'menu');
+      this.showCartPreview.set(true);
+    } else {
+      // Fresh add — push a new cart line and go back to the category view.
+      this.orderService.addItem(item.id, item.name, item.price, modifiers);
+      this.currentView.set('category');
+    }
   }
 
   selectionRuleLabel(group: ModifierGroupWithOptions): string {
@@ -262,6 +350,12 @@ export class Order implements OnInit {
     this.currentView.set('menu');
     this.showCartPreview.set(false);
     this.showNamePrompt.set(false);
+    // Clear any in-progress edit state in case an order was placed mid-edit.
+    this.editingCartLineId.set(null);
+    this.editReturnView = null;
+    this.pendingItem.set(null);
+    this.pendingSelections.set({});
+    this.pendingCustomTexts.set({});
   }
 
   // ── Template helpers ──────────────────────────────────────────────────────

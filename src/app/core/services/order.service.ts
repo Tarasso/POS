@@ -79,6 +79,13 @@ export class OrderService {
     this.cart.update(current => current.filter(c => c.cartLineId !== cartLineId));
   }
 
+  /** Replace the modifiers on an existing cart line (used when editing from the cart). */
+  updateItemModifiers(cartLineId: string, modifiers: AppliedModifier[]): void {
+    this.cart.update(current =>
+      current.map(c => c.cartLineId === cartLineId ? { ...c, modifiers } : c)
+    );
+  }
+
   // ── Order submission ──────────────────────────────────────────────────────
 
   submitOrder(): void {
