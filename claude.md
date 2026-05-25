@@ -570,6 +570,140 @@ Run with: `& "C:\Program Files\Python313\python.exe" api\set_option_colors.py`
 28. **`AppliedModifier.color` is a snapshot, not a live lookup** — changing a modifier option's color in the admin has no effect on orders already placed. Only new orders pick up the new color. This is intentional: consistent with how `optionName` is already snapshotted.
 29. **Windows terminal encoding** — `api/set_option_colors.py` avoids non-ASCII characters in print statements to prevent `cp1252` encoding errors on Windows PowerShell. Keep print strings ASCII-only in all Python scripts.
 
+## Operational Notes
+
+### Production deploy checklist
+
+Run these steps in order every time you deploy. Skipping any one of them causes a silent failure:
+
+```powershell
+# 1. Bundle Python packages (REQUIRED — Azure won't auto-install; api/.python_packages/ is gitignored)
+& "C:\Program Files\Python313\python.exe" -m pip install -r api\requirements.txt `
+  --target api\.python_packages\lib\site-packages
+
+# 2. Build Angular
+$env:PATH = "C:\Program Files\nodejs;" + $env:PATH
+npm run build
+
+# 3. Upload to Azure
+$bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\StaticSitesClient.exe"
+& $bin upload --workdir . --app "dist/pos/browser" --api "api" `
+  --apiToken <token> --skipAppBuild true --skipApiBuild true --configFileLocation "."
+```
+
+### Diagnosing a production 504 / all-screens-broken outage
+
+When every API call returns 504 (Gateway Timeout) and the browser console shows a CORS/AAD redirect loop on `/api/*`:
+
+1. **Most likely cause**: the Azure Functions Python worker can't import its dependencies because `api/.python_packages/` is empty or stale. Re-run step 1 of the deploy checklist and redeploy.
+2. **Second cause**: a code change was committed but never deployed. The live Functions are running old code that conflicts with new Angular payloads. Redeploy.
+3. **Auth redirect CORS error** is a *symptom*, not the cause — SWA's auth layer redirects timed-out/failed API responses to `identity.7.azurestaticapps.net`, which the browser blocks as cross-origin. Fix the 504 and the CORS errors disappear.
+4. After deploying, the user may need to log in again if their SWA session expired. That's normal.
+
+### Checking whether `api/.python_packages/` is populated
+
+The directory is gitignored, so `git status` won't show it. Use:
+```powershell
+(Get-ChildItem "api\.python_packages\lib\site-packages" -ErrorAction SilentlyContinue | Measure-Object).Count
+```
+Zero means empty — run the pip install step before deploying.
+
+Note: the Glob tool in Claude Code uses forward-slash glob patterns; Windows backslash paths cause "no files found" even when the directory is populated. Use `Get-ChildItem` to verify.
+
+## Cart + KDS UX Improvements
+
+### Cart preview — modifier text wrapping
+
+**`src/app/features/order/order.scss`** — `.cart-item-mods` had `white-space: nowrap; overflow: hidden; text-overflow: ellipsis` which silently truncated long modifier strings. Changed to `white-space: normal; line-height: 1.4; word-break: break-word` so all modifiers are always visible.
+
+### Edit cart item flow
+
+Tapping **✎ Edit** on any cart row (shown only for items with modifiers) reopens the modifier view pre-populated with the item's current selections, so modifiers can be adjusted ad-hoc.
+
+**`src/app/core/services/order.service.ts`**
+- `updateItemModifiers(cartLineId, modifiers)` — replaces the modifier array on an existing cart line in-place; does not change price, qty, or name.
+
+**`src/app/features/order/order.ts`**
+- `editingCartLineId = signal<string | null>(null)` — tracks whether the modifier view is in "edit" or "add" mode.
+- `editReturnView: View | null` — private field; stores the view (`'menu'` or `'category'`) to return to after the edit completes or is cancelled.
+- `editCartItem(cartLineId)` — looks up the cart item, finds the live menu item, reconstructs `pendingSelections` and `pendingCustomTexts` from the stored `AppliedModifier[]`, closes the cart sheet, and navigates to the modifier view.
+- `cancelModify()` — when `editingCartLineId` is set, restores `editReturnView` and re-opens the cart preview instead of navigating to `'category'`.
+- `addPendingToCart()` — branches: if `editingCartLineId` is set, calls `updateItemModifiers()` and re-opens the cart preview; otherwise calls `addItem()` as before.
+- `startNewOrder()` — resets edit state (`editingCartLineId`, `editReturnView`, pending signals) in addition to the cart.
+
+**`src/app/features/order/order.html`**
+- `✎ Edit` button rendered below `.cart-item-mods` for items with modifiers.
+- Modifier view footer shows **"Update Cart"** when `editingCartLineId()` is set, **"Add to Cart"** otherwise.
+- Modifier view header shows an **"Editing"** badge next to the item name when in edit mode.
+
+### KDS — modifier pills grouped by modifier group
+
+Previously all modifier pills for an item appeared on a single flex-wrap row, mixing groups (e.g. "Hot" and "Oat Milk" on the same line). Now each modifier group is its own row.
+
+**`src/app/features/kds/kds.ts`**
+- `modsByGroup(modifiers: AppliedModifier[]): ModGroupRow[]` — groups the flat `AppliedModifier[]` by `groupId`, preserving the order groups first appear (which matches `sortOrder`). Returns `{ groupId, groupName, mods[] }[]`. Works for any number of groups.
+
+**`src/app/features/kds/kds.html`** — both live order cards and the completed-history panel use `@for (grp of modsByGroup(...))` with an inner `@for` over `grp.mods`, rendering one `.item-mods-row` (or `.co-mods-row`) per group.
+
+**`src/app/features/kds/kds.scss`**
+- `.item-mods-groups` — `flex-direction: column; gap: 0.3rem; padding-left: 2.125rem` (replaces the old flat `.item-mods`).
+- `.item-mods-row` — `display: flex; flex-wrap: wrap; gap: 0.375rem` (one row per group).
+- `.co-mods-groups` / `.co-mods-row` — same layout, compact sizing, for the history panel.
+
+### Post-Cart/KDS Gotchas
+
+30. **`editReturnView` is a plain field, not a signal** — it only needs to survive for the duration of a single edit session and is always set/read in the same synchronous flow. Making it a signal would add unnecessary reactivity overhead and risk the value being read before it's set in `ngOnInit`.
+31. **`modsByGroup` uses a `Map` + insertion-order array for O(n) grouping** — `Map` in JavaScript preserves insertion order, but we still track a separate `seen` array because `map.keys()` iteration order can be surprising if the same key is added multiple times. The `seen` array guarantees output order matches the first occurrence of each `groupId` in the input array.
+
+## PWA Force-Update Mechanism
+
+### Problem
+
+Angular's NGSW (service worker) only checks for a new app version on page navigation. In a SPA where the user never navigates between routes, and on mobile where the PWA stays open in the background, the "App updated — tap to refresh" banner may never appear — even after a fresh deploy.
+
+### Solution
+
+Two complementary mechanisms in **`src/app/app.ts`**:
+
+**1. `↻` button in the nav bar** (right side, before "Sign out")
+
+A circular icon button with three visual states:
+
+| CSS class | Appearance | Tap behaviour |
+|---|---|---|
+| *(none)* | Muted grey `↻` | Calls `checkForUpdate()`, spins while in-flight |
+| `.is-checking` | Spinning `↻` animation | Ignored (debounced) |
+| `.is-ready` | Pulsing blue `↻` | Calls `applyUpdate()` immediately |
+| `.is-ok` | Green `✓` for 2 s | Auto-reverts — no update available |
+
+`manualCheck()` logic:
+- If `updateAvailable()` → call `applyUpdate()` (activates waiting SW + reloads).
+- If `swUpdate.isEnabled` is false (local dev) → `window.location.reload()`.
+- Otherwise → `checkForUpdate()`; if `false` returned, flash ✓ for 2 s; if `true`, the `VERSION_READY` event fires asynchronously and sets `updateAvailable()`, which makes the existing blue "App updated" banner appear.
+
+**2. Background polling every 5 minutes**
+
+```typescript
+this.pollTimer = setInterval(() => {
+  this.swUpdate.checkForUpdate().catch(() => {});
+}, 5 * 60 * 1_000);
+```
+
+Cleared in `ngOnDestroy`. This means the banner appears automatically on mobile even without the user tapping anything, as long as the app is open.
+
+**Workflow after a deploy:**
+1. Deploy as usual.
+2. On iPhone/iPad: tap `↻` in the nav bar — icon spins briefly.
+3. Blue "App updated — tap to refresh" banner appears.
+4. Tap the banner (or tap `↻` again while it pulses blue) → new version loads.
+5. Or wait up to 5 minutes — the banner appears on its own.
+
+### Post-PWA Gotchas
+
+32. **`ngsw.json` is auth-protected** — `staticwebapp.config.json` protects `/*` with `allowedRoles: ["staff","owner"]`, which includes `ngsw.json`. When a user's SWA session expires, the SW can't fetch `ngsw.json` to check for updates (gets a 302 redirect → CORS block). Fix: ensure the user re-authenticates. The polling and manual check will resume working once the session is restored.
+33. **`checkForUpdate()` returns `true` when a new version starts downloading, not when it's ready** — the `VERSION_READY` event fires later (seconds to tens of seconds depending on asset size). Don't try to call `activateUpdate()` immediately after `checkForUpdate()` returns `true`; wait for the event.
+34. **SW disabled in local dev (`swUpdate.isEnabled === false`)** — the `manualCheck()` method falls back to `window.location.reload()` in this case, which is a useful dev shortcut but doesn't go through the SW activation path.
+
 ## Not in Scope
 - Tax, payments, multi-tenant, push notifications, order editing
 - Only two order states ever exist: "open" and "completed"
