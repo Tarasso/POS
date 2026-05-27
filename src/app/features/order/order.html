@@ -1,0 +1,339 @@
+<div class="order-page">
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       SUCCESS OVERLAY
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (lastSubmittedOrder(); as order) {
+    <div class="success-overlay">
+      <div class="success-card">
+        <div class="success-icon">✓</div>
+        <h2 class="success-title">Order Placed!</h2>
+        <p class="success-name">{{ order.customerName }}</p>
+        <p class="success-total">{{ order.total | currency }}</p>
+        <button class="btn btn-primary btn-full" (click)="startNewOrder()">
+          New Order
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: MENU — category picker
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'menu') {
+    <div class="menu-view">
+
+      <header class="view-header">
+        <h1 class="view-title">Order</h1>
+        <!-- Event banner: shows active event name or a prompt to set one -->
+        <button class="event-banner" (click)="openEventSheet()">
+          @if (eventName()) {
+            <span class="event-label">Event:</span>
+            <span class="event-name-text">{{ eventName() }}</span>
+          } @else {
+            <span class="event-unset">Set event name</span>
+          }
+          <span class="event-edit-icon">✎</span>
+        </button>
+      </header>
+
+      @if (menuError()) {
+        <div class="error-banner error-banner-with-action">
+          <span>{{ menuError() }}</span>
+          <button class="btn-text-action" (click)="retryLoadMenu()">Retry</button>
+        </div>
+      }
+      @if (menuLoading() && !menu()) {
+        <p class="state-msg">Loading menu…</p>
+      }
+
+      @if (menu(); as tree) {
+        @if (tree.categories.length === 0) {
+          <p class="state-msg">No categories available.</p>
+        } @else {
+          <div class="tile-grid category-tile-grid">
+            @for (cat of tree.categories; track cat.id) {
+              @if (cat.items.length > 0) {
+                <button
+                  class="tile"
+                  [style.background]="cat.color || null"
+                  [style.border-color]="cat.color ? 'transparent' : null"
+                  (click)="showCategory(cat)"
+                >{{ cat.name }}</button>
+              }
+            }
+          </div>
+        }
+      }
+
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: CATEGORY — item picker
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'category') {
+    @if (selectedCategory(); as cat) {
+      <div class="category-view">
+
+        <header class="view-header">
+          <button class="btn-back" (click)="showMenu()">‹ Back</button>
+          <h1 class="view-title">{{ cat.name }}</h1>
+        </header>
+
+        <div class="tile-grid">
+          @for (item of cat.items; track item.id) {
+            <button
+              class="tile"
+              [class.tile-sold-out]="item.soldOut"
+              [disabled]="item.soldOut"
+              [style.background]="item.color || null"
+              [style.border-color]="item.color ? 'transparent' : null"
+              (click)="addToCart(item)"
+            >
+              {{ item.name }}
+              @if (item.soldOut) {
+                <span class="sold-out-label">Sold out</span>
+              }
+            </button>
+          }
+        </div>
+
+      </div>
+    }
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       VIEW: MODIFIERS — option picker for a selected item
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (currentView() === 'modifiers') {
+    @if (pendingItem(); as item) {
+      <div class="modifiers-view">
+
+        <header class="view-header">
+          <button class="btn-back" (click)="cancelModify()">‹ Back</button>
+          <h1 class="view-title">
+            {{ item.name }}
+            @if (editingCartLineId()) {
+              <span class="editing-badge">Editing</span>
+            }
+          </h1>
+        </header>
+
+        <div class="modifiers-scroll">
+          @for (group of activeModifierGroups(); track group.id) {
+            <section class="modifier-group">
+              <div class="modifier-group-header">
+                <span class="modifier-group-name">{{ group.name }}</span>
+                <span class="modifier-group-rule">{{ selectionRuleLabel(group) }}</span>
+              </div>
+              <div class="modifier-options-grid">
+                @for (option of group.options; track option.id) {
+                  <button
+                    class="modifier-btn"
+                    [class.modifier-btn-selected]="isOptionSelected(group.id, option.id)"
+                    (click)="toggleModifierOption(group.id, option.id, group.maxSelections)"
+                  >
+                    {{ option.name }}
+                  </button>
+                  @if (option.allowsCustomText && isOptionSelected(group.id, option.id)) {
+                    <div class="custom-text-wrapper">
+                      <input
+                        class="custom-text-input"
+                        type="text"
+                        placeholder="Add instructions…"
+                        [value]="pendingCustomTexts()[option.id] || ''"
+                        (input)="setCustomText(option.id, $event)"
+                        autocomplete="off"
+                        autocorrect="off"
+                        spellcheck="false"
+                      />
+                    </div>
+                  }
+                }
+              </div>
+            </section>
+          }
+        </div>
+
+        <div class="modifiers-footer">
+          <button
+            class="btn btn-primary btn-full"
+            [disabled]="!canAddToCart()"
+            (click)="addPendingToCart()"
+          >
+            @if (editingCartLineId()) { Update Cart } @else { Add to Cart }
+          </button>
+        </div>
+
+      </div>
+    }
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       PERSISTENT ORDER ACTION BAR
+       Shown on menu + category views whenever the cart has items.
+       Left  → opens cart preview sheet (view / edit items)
+       Right → opens name prompt sheet (enter name + place order)
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (cartCount() > 0 && currentView() !== 'modifiers') {
+    <div class="order-action-bar">
+
+      <!-- Cart preview trigger — second tap collapses the sheet -->
+      <button class="cart-peek-btn" (click)="toggleCartPreview()" aria-label="View order">
+        <span class="cart-peek-badge">{{ cartCount() }}</span>
+        <span class="cart-peek-label">
+          {{ cartCount() === 1 ? '1 item' : cartCount() + ' items' }}
+        </span>
+        <span class="cart-peek-total">{{ cartTotal() | currency }}</span>
+      </button>
+
+      <!-- Place order trigger -->
+      <button class="place-order-btn" (click)="openNamePrompt()">
+        Place Order <span class="place-order-arrow">→</span>
+      </button>
+
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       CART PREVIEW SHEET
+       Bottom sheet — slides up to show the current cart with qty editing.
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (showCartPreview()) {
+    <div class="sheet-backdrop cart-backdrop" (click)="closeCartPreview()"></div>
+    <div class="cart-sheet" role="dialog" aria-label="Your order">
+
+      <div class="sheet-drag-handle"></div>
+
+      <div class="sheet-header">
+        <h3 class="sheet-title">Your Order</h3>
+        <button class="sheet-close-btn" (click)="closeCartPreview()" aria-label="Close">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <ul class="cart-list">
+          @for (item of cart(); track item.cartLineId) {
+            <li class="cart-row">
+              <div class="cart-item-info">
+                <span class="cart-item-name">{{ item.name }}</span>
+                @if (item.modifiers.length > 0) {
+                  <span class="cart-item-mods">{{ modifierSummary(item.modifiers) }}</span>
+                  <button
+                    class="edit-mods-btn"
+                    (click)="editCartItem(item.cartLineId)"
+                    aria-label="Edit modifiers"
+                  >✎ Edit</button>
+                }
+              </div>
+              <div class="qty-controls">
+                <button class="qty-btn" (click)="decrement(item.cartLineId)">−</button>
+                <span class="qty-value">{{ item.qty }}</span>
+                <button class="qty-btn" (click)="increment(item.cartLineId)">+</button>
+              </div>
+              <span class="cart-item-price">{{ (item.price * item.qty) | currency }}</span>
+              <button class="remove-btn" (click)="remove(item.cartLineId)" aria-label="Remove item">✕</button>
+            </li>
+          }
+        </ul>
+
+        <div class="cart-total-row">
+          <span class="cart-total-label">Total</span>
+          <span class="cart-total-amount">{{ cartTotal() | currency }}</span>
+        </div>
+      </div>
+
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       EVENT NAME SHEET
+       Bottom sheet — set the current event name (persisted to localStorage).
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (showEventSheet()) {
+    <div class="sheet-backdrop" (click)="closeEventSheet()"></div>
+    <div class="event-sheet" role="dialog" aria-label="Set event name">
+
+      <div class="sheet-drag-handle"></div>
+
+      <div class="sheet-header">
+        <h3 class="sheet-title">Event Name</h3>
+        <button class="sheet-close-btn sheet-cancel-btn" (click)="closeEventSheet()">Cancel</button>
+      </div>
+
+      <div class="event-sheet-body">
+        <p class="event-sheet-hint">
+          Give this event a name so you can filter analytics by event later.
+          Leave blank to clear.
+        </p>
+        <input
+          class="name-input"
+          type="text"
+          placeholder="e.g. Birthday Party, Friday Night…"
+          [(ngModel)]="eventNameDraft"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="words"
+          spellcheck="false"
+          enterkeyhint="done"
+          (keydown.enter)="saveEventName()"
+        />
+        <button class="name-submit-btn" (click)="saveEventName()">
+          Save Event
+        </button>
+      </div>
+
+    </div>
+  }
+
+  <!-- ═══════════════════════════════════════════════════════════════════════
+       NAME PROMPT SHEET
+       Bottom sheet — name input auto-focuses to trigger the mobile keyboard.
+       Enter key or the Place Order button submits.
+  ═══════════════════════════════════════════════════════════════════════════ -->
+  @if (showNamePrompt()) {
+    <div class="sheet-backdrop" (click)="closeNamePrompt()"></div>
+    <div class="name-sheet" role="dialog" aria-label="Place order">
+
+      <div class="sheet-drag-handle"></div>
+
+      <div class="sheet-header">
+        <h3 class="sheet-title">What's the name?</h3>
+        <button class="sheet-close-btn sheet-cancel-btn" (click)="closeNamePrompt()">Cancel</button>
+      </div>
+
+      @if (submitError()) {
+        <div class="error-banner name-sheet-error">{{ submitError() }}</div>
+      }
+
+      <div class="name-sheet-body">
+        <input
+          #nameInput
+          class="name-input"
+          type="text"
+          placeholder="Enter name…"
+          [(ngModel)]="customerName"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="words"
+          spellcheck="false"
+          enterkeyhint="done"
+          (keydown.enter)="submitFromNamePrompt()"
+        />
+        <button
+          class="name-submit-btn"
+          [disabled]="!canSubmit()"
+          (click)="submitFromNamePrompt()"
+        >
+          @if (submitting()) {
+            Placing Order…
+          } @else {
+            Place Order — {{ cartTotal() | currency }}
+          }
+        </button>
+      </div>
+
+    </div>
+  }
+
+</div>

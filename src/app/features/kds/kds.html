@@ -1,0 +1,165 @@
+<div class="kds-page">
+
+  <!-- ── Connection status bar ─────────────────────────────────────────────── -->
+  @if (connectionState() === 'connecting') {
+    <div class="kds-status-bar status-connecting">
+      Connecting to live updates…
+    </div>
+  } @else if (connectionState() === 'error' || connectionState() === 'disconnected') {
+    <div class="kds-status-bar status-error">
+      <span>⚠ Connection lost — new orders may not appear automatically</span>
+      <button class="reconnect-btn" (click)="reconnect()">Reconnect</button>
+    </div>
+  }
+
+  <!-- ── Load error banner ─────────────────────────────────────────────────── -->
+  @if (loadError()) {
+    <div class="kds-status-bar status-error">
+      {{ loadError() }}
+    </div>
+  }
+
+  <!-- ── Empty state ───────────────────────────────────────────────────────── -->
+  @if (orders().length === 0 && connectionState() === 'connected' && !loadError()) {
+    <div class="kds-empty">
+      <span class="kds-empty-icon">🍽</span>
+      <p>No open orders</p>
+    </div>
+  }
+
+  <!-- ── Order card grid ───────────────────────────────────────────────────── -->
+  <div class="kds-grid">
+    @for (order of orders(); track order.id) {
+      <div
+        class="order-card"
+        [class.urgent-yellow]="urgencyClass(order.createdAt) === 'urgent-yellow'"
+        [class.urgent-red]="urgencyClass(order.createdAt) === 'urgent-red'"
+        [class.is-completing]="completing().has(order.id)"
+        [class.first-tapped]="firstTapped().has(order.id)"
+        (click)="onCardClick(order.id)"
+      >
+        <!-- Card header: customer name + live timer -->
+        <div class="card-header">
+          <span class="card-name">{{ order.customerName }}</span>
+          <span
+            class="card-timer"
+            [class.timer-warning]="urgencyClass(order.createdAt) === 'urgent-yellow'"
+            [class.timer-urgent]="urgencyClass(order.createdAt) === 'urgent-red'"
+          >{{ elapsedDisplay(order.createdAt) }}</span>
+        </div>
+
+        <!-- Item list with modifier pills -->
+        <ul class="card-items">
+          @for (item of order.items; track item.itemId) {
+            <li class="card-item">
+              <div class="item-row">
+                <span class="item-qty">{{ item.qty }}×</span>
+                <span class="item-name">{{ item.name }}</span>
+              </div>
+              @if (item.modifiers.length > 0) {
+                <!-- Each modifier group gets its own flex-wrap row of pills -->
+                <div class="item-mods-groups">
+                  @for (grp of modsByGroup(item.modifiers); track grp.groupId) {
+                    <div class="item-mods-row">
+                      @for (mod of grp.mods; track mod.optionId) {
+                        <span
+                          class="mod-pill"
+                          [style.background]="mod.color || null"
+                          [style.color]="mod.color ? modPillTextColor(mod.color) : null"
+                          [style.border-color]="mod.color ? 'transparent' : null"
+                        >
+                          {{ mod.optionName }}@if (mod.customText) {<span class="mod-custom-text">: {{ mod.customText }}</span>}
+                        </span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </li>
+          }
+        </ul>
+
+        <!-- Double-tap hint / completion state -->
+        <div class="card-action-hint">
+          @if (completing().has(order.id)) {
+            <span class="hint-completing">Completing…</span>
+          } @else if (firstTapped().has(order.id)) {
+            <span class="hint-tap-again">Tap again to complete!</span>
+          } @else {
+            <span class="hint-default">Double-tap to complete</span>
+          }
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- ── History FAB ───────────────────────────────────────────────────────── -->
+  <button class="history-fab" (click)="openCompleted()" aria-label="View completed orders">
+    <span class="fab-icon">✓</span>
+    <span class="fab-label">History</span>
+  </button>
+
+  <!-- ── Completed orders panel ────────────────────────────────────────────── -->
+  @if (showCompleted()) {
+    <div class="completed-backdrop" (click)="closeCompleted()"></div>
+    <div class="completed-panel" role="dialog" aria-label="Completed orders">
+
+      <div class="completed-panel-header">
+        <h2 class="completed-panel-title">Completed Orders</h2>
+        <div class="panel-header-actions">
+          <button class="panel-btn" (click)="refreshCompleted()" title="Refresh" [disabled]="loadingCompleted()">
+            ↻ Refresh
+          </button>
+          <button class="panel-btn panel-btn-close" (click)="closeCompleted()">✕</button>
+        </div>
+      </div>
+
+      <div class="completed-panel-body">
+        @if (loadingCompleted()) {
+          <div class="completed-state">Loading…</div>
+        } @else if (completedError()) {
+          <div class="completed-state completed-state-err">{{ completedError() }}</div>
+        } @else if (completedOrders().length === 0) {
+          <div class="completed-state">No completed orders yet.</div>
+        } @else {
+          <ul class="completed-list">
+            @for (order of completedOrders(); track order.id) {
+              <li class="co-card">
+                <div class="co-header">
+                  <span class="co-name">{{ order.customerName }}</span>
+                  <span class="co-time">{{ order.completedAt | date:'M/d · h:mm a' }}</span>
+                </div>
+                <div class="co-items">
+                  @for (item of order.items; track item.itemId) {
+                    <div class="co-item">
+                      <span class="co-item-label">{{ item.qty }}× {{ item.name }}</span>
+                      @if (item.modifiers.length > 0) {
+                        <div class="co-mods-groups">
+                          @for (grp of modsByGroup(item.modifiers); track grp.groupId) {
+                            <div class="co-mods-row">
+                              @for (mod of grp.mods; track mod.optionId) {
+                                <span
+                                  class="co-mod-pill"
+                                  [style.background]="mod.color || null"
+                                  [style.color]="mod.color ? modPillTextColor(mod.color) : null"
+                                  [style.border-color]="mod.color ? 'transparent' : null"
+                                >{{ mod.optionName }}@if (mod.customText) {: {{ mod.customText }}}</span>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
+                <div class="co-total">${{ order.total.toFixed(2) }}</div>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+
+    </div>
+  }
+
+</div>

@@ -1,0 +1,672 @@
+/* ── Admin page layout ───────────────────────────────────────────────────── */
+
+.admin {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1rem;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: #1a1a1a;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+
+  h1 { font-size: 1.25rem; font-weight: 700; margin: 0; }
+}
+
+/* ── Tab bar ─────────────────────────────────────────────────────────────── */
+
+.admin-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tab-btn {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  background: none;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+
+  &.active {
+    color: #2563eb;
+    border-bottom-color: #2563eb;
+  }
+
+  &:hover:not(.active) { color: #374151; }
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ── Category header row ────────────────────────────────────────────────── */
+
+.category-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+
+.category-name {
+  font-weight: 600;
+  font-size: 1rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sort-badge {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  min-width: 2rem;
+}
+
+/* ── Item list ──────────────────────────────────────────────────────────── */
+
+.item-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.item-row {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0;
+  border-top: 1px solid #f3f4f6;
+  min-height: 2.75rem;
+  cursor: default;
+
+  &.dragging { opacity: 0.4; }
+  &.drag-over { border-top: 2px solid #3b82f6; }
+}
+
+.item-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.expand-btn {
+  font-size: 0.625rem;
+  min-width: 1.75rem;
+  color: #6b7280;
+}
+
+.item-name  { flex: 1; font-size: 0.9375rem; }
+
+.item-price {
+  color: #374151;
+  font-size: 0.9375rem;
+  min-width: 3.5rem;
+  text-align: right;
+}
+
+.item-actions { display: flex; gap: 0.375rem; }
+
+.add-item-btn {
+  margin-top: 0.5rem;
+  width: 100%;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+/* ── Item modifier expand panel ──────────────────────────────────────────── */
+
+.item-modifiers-panel {
+  margin-top: 0.375rem;
+  padding: 0.5rem 0 0.125rem 1.625rem; // indent past the drag handle
+  border-top: 1px dashed #e5e7eb;
+}
+
+.no-modifiers {
+  font-size: 0.8125rem;
+  color: #6b7280;
+}
+
+.modifier-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.modifier-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.chip-name {
+  padding: 0.25rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #1d4ed8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover { background: #dbeafe; text-decoration: underline; }
+}
+
+.chip-remove {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  background: none;
+  border: none;
+  border-left: 1px solid #bfdbfe;
+  cursor: pointer;
+  line-height: 1;
+
+  &:hover:not(:disabled) { background: #fee2e2; color: #dc2626; }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+}
+
+/* ── Group highlight (when jumping from item expand panel) ───────────────── */
+
+.group-highlighted {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+/* ── Inline link button ──────────────────────────────────────────────────── */
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: #2563eb;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ── Modifier group card ────────────────────────────────────────────────── */
+
+.modifier-group-card {
+  /* inherits .card */
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  flex-wrap: wrap;
+}
+
+.group-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.group-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-rule-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  white-space: nowrap;
+}
+
+.group-actions { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+
+/* ── Option list ────────────────────────────────────────────────────────── */
+
+.option-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.option-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0;
+  border-top: 1px solid #f3f4f6;
+  min-height: 2.5rem;
+  flex-wrap: wrap;
+}
+
+.option-name { flex: 1; font-size: 0.9375rem; }
+
+.option-actions { display: flex; gap: 0.375rem; }
+
+.add-option-btn {
+  margin-top: 0.5rem;
+  width: 100%;
+  border-top: 1px dashed #e5e7eb;
+  padding-top: 0.5rem;
+}
+
+.add-option-form {
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 0.5rem;
+}
+
+.option-edit-form {
+  padding: 0.375rem 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+/* ── Badges ─────────────────────────────────────────────────────────────── */
+
+.badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  white-space: nowrap;
+}
+
+.badge-default {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.badge-custom {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ── Item assignment panel ──────────────────────────────────────────────── */
+
+.assign-panel {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.375rem;
+}
+
+.assign-panel-header {
+  margin-bottom: 0.625rem;
+}
+
+.assign-title {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.125rem;
+}
+
+.assign-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.assign-category {
+  margin-bottom: 0.5rem;
+}
+
+.assign-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.1875rem;
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] { flex-shrink: 0; }
+}
+
+.assign-cat-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6b7280;
+}
+
+.assign-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3125rem 0;
+  font-size: 0.9375rem;
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] { flex-shrink: 0; }
+}
+
+.assign-actions {
+  margin-top: 0.625rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.625rem;
+}
+
+/* ── Labeled form fields ─────────────────────────────────────────────────── */
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.form-field-short {
+  flex: 0 0 6rem;
+}
+
+.field-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #374151;
+  white-space: nowrap;
+}
+
+/* ── Drag handle ─────────────────────────────────────────────────────────── */
+
+.drag-handle {
+  cursor: grab;
+  color: #9ca3af;
+  font-size: 1.125rem;
+  padding: 0 0.125rem;
+  user-select: none;
+  flex-shrink: 0;
+  line-height: 1;
+
+  &:active { cursor: grabbing; }
+}
+
+/* ── Inline forms ───────────────────────────────────────────────────────── */
+
+.inline-form {
+  padding: 0.75rem 0 0.25rem;
+
+  h3 { font-size: 0.9375rem; font-weight: 600; margin: 0 0 0.5rem; }
+}
+
+.add-item-form {
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 0.5rem;
+}
+
+.item-edit-form {
+  padding: 0.5rem 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.form-row-checkbox {
+  gap: 1rem;
+}
+
+.form-label {
+  font-size: 0.8125rem;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.form-actions { display: flex; gap: 0.5rem; }
+
+.form-error {
+  margin: 0 0 0.375rem;
+  font-size: 0.8125rem;
+  color: #dc2626;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* ── Inputs ─────────────────────────────────────────────────────────────── */
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 2.5rem;
+  padding: 0 0.625rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.9375rem;
+  outline: none;
+
+  &:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+  }
+}
+
+.input-short { flex: 0 0 5.5rem; }
+
+/* Native color picker — compact swatch */
+.input-color {
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.25rem;
+  padding: 0.125rem 0.25rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  background: none;
+  vertical-align: middle;
+}
+
+/* Hex label next to color picker */
+.color-preview-label {
+  font-size: 0.8125rem;
+  color: #6b7280;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+/* Inline color dot in the modifier option read-only row */
+.option-color-swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, opacity 0.1s;
+
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+}
+
+.btn-sm { height: 2rem; padding: 0 0.625rem; font-size: 0.8125rem; }
+
+.btn-primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  &:hover:not(:disabled) { background: #1d4ed8; }
+}
+
+.btn-ghost {
+  background: transparent;
+  color: #374151;
+  border-color: #d1d5db;
+  &:hover:not(:disabled) { background: #f9fafb; }
+}
+
+.btn-danger {
+  background: transparent;
+  color: #dc2626;
+  border-color: #fca5a5;
+  &:hover:not(:disabled) { background: #fee2e2; }
+}
+
+.btn-in-stock {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #6ee7b7;
+  &:hover:not(:disabled) { background: #a7f3d0; }
+}
+
+.btn-sold-out {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+  &:hover:not(:disabled) { background: #fecaca; }
+}
+
+/* ── Feedback states ─────────────────────────────────────────────────────── */
+
+.error-banner {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+  border-radius: 0.375rem;
+  padding: 0.625rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9375rem;
+}
+
+.loading,
+.empty {
+  color: #6b7280;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+/* ── Mobile responsive (≤ 480px) ─────────────────────────────────────────── */
+/*
+ * On a phone (~375px viewport) the item row main packs:
+ *   drag-handle + item-name + price + [Sold Out / In Stock] + [Edit] + [✕] + [▼]
+ * into one flex row — it doesn't fit.  We wrap the action buttons onto a
+ * second line so the name and price always have room to breathe.
+ *
+ * Category and group headers already flex-wrap where needed; we just ensure
+ * text nodes can't force overflow by adding an explicit min-width: 0 (done
+ * on the classes above) and allow wrapping here for very long names.
+ */
+
+@media (max-width: 480px) {
+  /* Tighten outer padding so cards have more usable width */
+  .admin {
+    padding: 0.75rem;
+  }
+
+  .card {
+    padding: 0.625rem 0.75rem;
+  }
+
+  /* ── Item row: wrap action buttons to a second line ─────────────────── */
+  .item-row-main {
+    flex-wrap: wrap;
+  }
+
+  /* item-name + item-price stay on the first line (flex:1 + fixed width).
+     Actions get their own full-width second line, right-aligned. */
+  .item-actions {
+    width: 100%;
+    justify-content: flex-end;
+    padding-top: 0.375rem;
+    border-top: 1px solid #f3f4f6;
+    flex-wrap: wrap;    // rare: allows "Sold Out" button to wrap if truly tiny
+  }
+
+  /* ── Category header: allow long names to wrap ───────────────────────── */
+  .category-header {
+    flex-wrap: wrap;
+  }
+
+  /* ── Shrink sort badge so it doesn't eat space ───────────────────────── */
+  .sort-badge {
+    font-size: 0.6875rem;
+  }
+
+  /* ── Tab bar: let labels shrink slightly ─────────────────────────────── */
+  .tab-btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+  }
+
+  /* ── Form layout: give the "short" field a bit more breathing room ───── */
+  .form-field-short {
+    flex: 0 0 7rem;
+  }
+
+  /* ── Modifier group header actions: always wrap under group name ─────── */
+  .group-header {
+    align-items: flex-start;
+  }
+
+  .group-header-left {
+    // Ensure rule badge doesn't push name off screen on a tiny viewport
+    flex-wrap: wrap;
+  }
+
+  /* ── Assign-items panel: tighten inner padding ───────────────────────── */
+  .assign-panel {
+    padding: 0.625rem;
+  }
+}

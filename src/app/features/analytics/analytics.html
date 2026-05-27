@@ -1,0 +1,179 @@
+<div class="analytics-page">
+  <h1 class="page-title">Analytics</h1>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       FILTER BAR
+  ══════════════════════════════════════════════════════════════════════════ -->
+  <div class="filter-bar">
+
+    <!-- Mode toggle -->
+    <div class="filter-mode-toggle">
+      <button class="mode-btn" [class.active]="filterMode() === 'event'"
+        (click)="setFilterMode('event')">By Event</button>
+      <button class="mode-btn" [class.active]="filterMode() === 'daterange'"
+        (click)="setFilterMode('daterange')">By Date</button>
+    </div>
+
+    <!-- Event mode -->
+    @if (filterMode() === 'event') {
+      @if (loadingEvents()) {
+        <p class="filter-hint">Loading events…</p>
+      } @else if (events().length === 0) {
+        <p class="filter-hint">No named events yet — set an event name on the Order screen before taking orders.</p>
+      } @else {
+        <div class="event-list">
+          @for (ev of events(); track ev.name) {
+            <button
+              class="event-chip"
+              [class.active]="svc.filterEventName() === ev.name"
+              (click)="selectEvent(ev.name)"
+            >
+              <span class="event-chip-name">{{ ev.name }}</span>
+              <span class="event-chip-count">{{ ev.orderCount }}</span>
+            </button>
+          }
+        </div>
+      }
+    }
+
+    <!-- Date range mode -->
+    @if (filterMode() === 'daterange') {
+      <div class="preset-btns">
+        <button class="preset-btn" (click)="setPreset('today')">Today</button>
+        <button class="preset-btn" (click)="setPreset('yesterday')">Yesterday</button>
+        <button class="preset-btn" (click)="setPreset('month')">This Month</button>
+      </div>
+      <div class="date-range-row">
+        <div class="date-field">
+          <label class="date-label">From</label>
+          <input class="date-input" type="date" [(ngModel)]="startDate" />
+        </div>
+        <div class="date-field">
+          <label class="date-label">To</label>
+          <input class="date-input" type="date" [(ngModel)]="endDate" />
+        </div>
+        <button class="apply-btn" (click)="applyDateRange()">Apply</button>
+      </div>
+    }
+
+    <!-- Active filter pill + clear -->
+    @if (hasFilter()) {
+      <div class="active-filter-row">
+        <span class="active-filter-pill">{{ activeFilterLabel() }}</span>
+        <button class="clear-filter-btn" (click)="clearFilter()">✕ Clear</button>
+      </div>
+    }
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       LOADING / ERROR
+  ══════════════════════════════════════════════════════════════════════════ -->
+  @if (loading()) {
+    <p class="state-msg">Loading…</p>
+  } @else if (error()) {
+    <p class="state-msg error-msg">{{ error() }}</p>
+  } @else {
+
+    <!-- ── Summary cards ──────────────────────────────────────────────── -->
+    @if (summary(); as s) {
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-value">{{ s.totalOrders }}</div>
+          <div class="card-label">Orders</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-value">{{ s.totalItems }}</div>
+          <div class="card-label">Items Served</div>
+        </div>
+        <div class="summary-card">
+          <div class="card-value">{{ s.avgItemsPerOrder | number:'1.1-1' }}</div>
+          <div class="card-label">Avg Items / Order</div>
+        </div>
+      </div>
+
+      <!-- ── Modifier breakdown ─────────────────────────────────────────── -->
+      @if (s.modifierBreakdown.length > 0) {
+        <h2 class="section-title">Modifier Totals</h2>
+        <div class="modifier-groups">
+          @for (group of s.modifierBreakdown; track group.groupName) {
+            <div class="modifier-group-card">
+              <h3 class="modifier-group-title">{{ group.groupName }}</h3>
+              <div class="modifier-option-list">
+                @for (option of group.options; track option.optionName) {
+                  <div class="modifier-bar-row">
+                    <span class="mod-option-name">{{ option.optionName }}</span>
+                    <div class="bar-track">
+                      <div class="bar-fill" [style.width]="barWidth(option.count, group)"></div>
+                    </div>
+                    <span class="mod-count">{{ option.count }}</span>
+                  </div>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      } @else if (s.totalOrders > 0) {
+        <p class="state-msg">No modifier data — orders don't have modifiers yet.</p>
+      }
+
+      <!-- ── Top Items ──────────────────────────────────────────────────── -->
+      @if (s.topItems.length > 0) {
+        <h2 class="section-title">Top Items</h2>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Item</th>
+              <th class="num">Qty</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of s.topItems; track item.itemId; let i = $index) {
+              <tr>
+                <td class="rank">{{ i + 1 }}</td>
+                <td>{{ item.name }}</td>
+                <td class="num">{{ item.qtyTotal }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      <!-- ── No data state ──────────────────────────────────────────────── -->
+      @if (s.totalOrders === 0) {
+        <div class="empty-state">
+          <div class="empty-icon">📊</div>
+          <p>No completed orders{{ hasFilter() ? ' match this filter' : ' yet' }}.</p>
+          @if (hasFilter()) {
+            <button class="clear-filter-btn" (click)="clearFilter()">Clear filter</button>
+          }
+        </div>
+      }
+    }
+
+    <!-- ── Order History ──────────────────────────────────────────────────── -->
+    @if (orders().length > 0) {
+      <h2 class="section-title">Order History</h2>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Customer</th>
+            <th class="num">Items</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (order of orders(); track order.id) {
+            <tr>
+              <td class="time-cell">{{ order.completedAt | date: 'M/d · h:mm a' }}</td>
+              <td>{{ order.customerName }}</td>
+              <td class="num">{{ orderItemCount(order) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+
+  }
+</div>
