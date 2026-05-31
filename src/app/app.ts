@@ -297,6 +297,7 @@ export class App implements OnDestroy {
       fetch('/api/health', { credentials: 'same-origin' }).catch(() => {});
     };
     document.addEventListener('visibilitychange', this.visibilityHandler);
+    this.visibilityHandler(); // also run once on cold launch — visibilitychange never fires then
   }
 
   ngOnDestroy(): void {

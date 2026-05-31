@@ -6,9 +6,9 @@ import { catchError, switchMap } from 'rxjs/operators';
 
 /**
  * Retry delays for Azure Functions cold-start (504).
- * Three attempts: 2 s, 5 s, 10 s — covers ~17 s of warm-up time.
+ * Three attempts: 3 s, 8 s, 20 s — covers ~31 s of warm-up time.
  */
-const BACKOFF_DELAYS = [2_000, 5_000, 10_000];
+const BACKOFF_DELAYS = [3_000, 8_000, 20_000];
 
 /**
  * Checks /.auth/me with native fetch (avoids HttpClient circular dependency).

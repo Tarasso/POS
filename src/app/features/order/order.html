@@ -41,6 +41,7 @@
         <div class="error-banner error-banner-with-action">
           <span>{{ menuError() }}</span>
           <button class="btn-text-action" (click)="retryLoadMenu()">Retry</button>
+          <a class="btn-text-action" href="/.auth/login/aad">Sign in</a>
         </div>
       }
       @if (menuLoading() && !menu()) {
