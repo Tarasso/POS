@@ -704,6 +704,38 @@ Cleared in `ngOnDestroy`. This means the banner appears automatically on mobile 
 33. **`checkForUpdate()` returns `true` when a new version starts downloading, not when it's ready** — the `VERSION_READY` event fires later (seconds to tens of seconds depending on asset size). Don't try to call `activateUpdate()` immediately after `checkForUpdate()` returns `true`; wait for the event.
 34. **SW disabled in local dev (`swUpdate.isEnabled === false`)** — the `manualCheck()` method falls back to `window.location.reload()` in this case, which is a useful dev shortcut but doesn't go through the SW activation path.
 
+## Resilience for Infrequent Use
+
+The app is used a few times per month. Two failure modes occur between sessions:
+
+1. **Azure Functions cold start** — Consumption plan idles after ~20 min. First API call returns 504; the function warms up in ~10–20 s.
+2. **SWA session expiry** — Sessions expire between uses. Expired-session API calls return a 302 redirect to `identity.7.azurestaticapps.net`, which the browser blocks as cross-origin (status 0 in Angular).
+
+### What was built
+
+**`src/app/core/interceptors/resilience.interceptor.ts`** (new file)
+
+A functional `HttpInterceptorFn` applied to `/api/*` requests only.
+
+- **504 retry with backoff**: retries up to 3 times — 2 s, 5 s, 10 s — before propagating the error. The component stays in its "Loading…" state during retries; no error is shown unless all retries are exhausted.
+- **Status-0 auth detection**: when online and a request returns status 0 (CORS block from auth redirect), calls `/.auth/me` via native `fetch()` (not `HttpClient` — avoids circular dependency). If `clientPrincipal` is null → redirects to `/.auth/login/aad` and returns `NEVER`. If still authenticated → retries once after 1 s.
+
+**`src/app/app.config.ts`**
+- Registered the interceptor: `provideHttpClient(withInterceptors([resilienceInterceptor]))`
+
+**`src/app/app.ts`** — `visibilitychange` listener on `document`
+- Fires whenever the PWA comes back to the foreground (user reopens the app after hours/days).
+- **Auth check**: calls `/.auth/me` via native `fetch`; if `clientPrincipal` is null, redirects to `/.auth/login/aad` immediately — before any API call fails.
+- **Pre-warm**: fires `GET /api/health` (fire-and-forget) to kick off the Azure Function cold start while the user looks at the cached UI, so the function is ready by the time they interact.
+- `visibilityHandler` reference stored on the class and removed in `ngOnDestroy`.
+
+### Resilience Gotchas
+
+35. **`checkAuth()` uses native `fetch`, not `HttpClient`** — injecting `HttpClient` inside an `HttpInterceptorFn` would create a circular provider dependency. Use `fetch('/.auth/me', { credentials: 'same-origin' })` instead.
+36. **`/.auth/me` always responds from the CDN edge** — it is not affected by Azure Functions cold starts or `api/.python_packages/` issues. It reliably distinguishes "session expired" from "API down".
+37. **Status 0 on offline is handled separately** — the interceptor only triggers the `/.auth/me` auth check when `navigator.onLine` is true. When offline, status-0 errors pass through to the service's error handler; the existing offline banner (in `app.ts`) covers that case.
+38. **Visibility pre-warm fires on every foreground** — this is intentional. The health ping is cheap (~50 ms) and safe to call repeatedly. Azure Functions ignores duplicate calls; the benefit on first open after a long break outweighs the negligible overhead.
+
 ## Not in Scope
 - Tax, payments, multi-tenant, push notifications, order editing
 - Only two order states ever exist: "open" and "completed"
