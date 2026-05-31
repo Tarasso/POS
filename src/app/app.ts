@@ -69,7 +69,7 @@ const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
       top: 0;
       left: 0;
       right: 0;
-      height: calc(2.75rem + env(safe-area-inset-top, 0px));
+      height: var(--nav-h);
       padding-top: env(safe-area-inset-top, 0px);
       padding-left: 1rem;
       padding-right: 0.5rem;
@@ -204,7 +204,7 @@ const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
 
     /* ── Content wrapper ─────────────────────────────────────────────────── */
     .app-content {
-      padding-top: calc(2.75rem + env(safe-area-inset-top, 0px));
+      padding-top: var(--nav-h);
     }
 
     /* ── System banners ──────────────────────────────────────────────────── */
