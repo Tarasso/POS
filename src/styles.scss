@@ -1,9 +1,12 @@
 /* ── Design tokens ───────────────────────────────────────────────────────── */
 :root {
   /* Nav bar height — fixed nav (2.75rem) + iOS safe-area-inset-top (e.g. ~59px on
-     iPhone 16 with Dynamic Island). Any sticky/fixed element that must clear the
-     nav bar should use top: var(--nav-h) rather than a hard-coded 2.75rem. */
+     iPhone 16 with Dynamic Island). --nav-h is the exact height of the nav bar.
+     --nav-clearance adds 0.5rem breathing room below it so content doesn't sit
+     flush against the nav's box-shadow. Use --nav-clearance for padding-top /
+     sticky top values; use --nav-h only for the nav element's own height. */
   --nav-h: calc(2.75rem + env(safe-area-inset-top, 0px));
+  --nav-clearance: calc(var(--nav-h) + 0.5rem);
 
   /* Backgrounds */
   --bg:           #f0f2f5;

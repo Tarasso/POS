@@ -26,7 +26,7 @@
   background: var(--surface);
   box-shadow: 0 1px 0 var(--border-light), var(--shadow-xs);
   position: sticky;
-  top: var(--nav-h);
+  top: var(--nav-clearance);
   z-index: 10;
 }
 

@@ -204,7 +204,7 @@ const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
 
     /* ── Content wrapper ─────────────────────────────────────────────────── */
     .app-content {
-      padding-top: var(--nav-h);
+      padding-top: var(--nav-clearance);
     }
 
     /* ── System banners ──────────────────────────────────────────────────── */
