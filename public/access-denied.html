@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Access Denied — POS</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      padding: 1.5rem;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #1e293b;
+      border-radius: 0.75rem;
+      padding: 2rem;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
+    p  { font-size: 0.9rem; color: #94a3b8; margin: 0 0 1.5rem; line-height: 1.5; }
+    .account { font-size: 0.8rem; color: #64748b; margin: 0 0 1.5rem; }
+    .btn {
+      display: inline-block;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      padding: 0.65rem 1.5rem;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    #loading { color: #64748b; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="loading">Checking&hellip;</div>
+    <div id="content" style="display:none">
+      <h1>Access Denied</h1>
+      <p>
+        You're signed in but your account doesn't have permission to use this app.
+        Signing out and back in often fixes this — it forces a fresh role check.
+      </p>
+      <p class="account" id="account-line"></p>
+      <a class="btn" href="/.auth/logout?post_logout_redirect_uri=/.auth/login/aad">
+        Sign out &amp; sign back in
+      </a>
+    </div>
+  </div>
+  <script>
+    (async () => {
+      try {
+        const res = await fetch('/.auth/me', { credentials: 'same-origin' });
+        const data = await res.json();
+        if (!data.clientPrincipal) {
+          // Not logged in at all — redirect straight to Microsoft login
+          const returnUrl = encodeURIComponent('/');
+          window.location.replace('/.auth/login/aad?post_login_redirect_uri=' + returnUrl);
+          return;
+        }
+        // Logged in but no role — show the error with the account that was used
+        const line = document.getElementById('account-line');
+        if (line) line.textContent = 'Signed in as: ' + data.clientPrincipal.userDetails;
+      } catch (_) {
+        // Network error — fall through and show the page anyway
+      }
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+    })();
+  </script>
+</body>
+</html>

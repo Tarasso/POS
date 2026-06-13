@@ -12,6 +12,10 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/access-denied.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
       "route": "/api/*",
       "allowedRoles": ["staff", "owner"]
     },
@@ -22,7 +26,7 @@
   ],
   "responseOverrides": {
     "401": {
-      "redirect": "/.auth/login/aad",
+      "redirect": "/access-denied.html",
       "statusCode": 302
     }
   },

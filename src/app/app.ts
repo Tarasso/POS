@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal, OnDestroy } from '@angular/core';
+import { Component, DestroyRef, inject, signal, computed, OnDestroy } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { fromEvent, merge } from 'rxjs';
@@ -7,6 +7,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 /** How often (ms) to silently check for a new SW version in the foreground. */
 const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
+/** How often (ms) to check /.auth/me for session expiry in the foreground. */
+const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
 
 @Component({
   selector: 'app-root',
@@ -52,6 +54,13 @@ const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
 
     @if (isOffline()) {
       <div class="offline-banner">You're offline — orders can't be placed</div>
+    }
+
+    @if (sessionExpired()) {
+      <div class="session-expired-banner">
+        Session expired.
+        <a class="session-expired-link" [href]="sessionExpiredLoginUrl()">Sign in</a>
+      </div>
     }
 
     <div class="app-content">
@@ -229,6 +238,22 @@ const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
       padding: 0.4rem 1rem;
     }
 
+    .session-expired-banner {
+      background: #7c2d12;
+      color: #fff;
+      text-align: center;
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.4rem 1rem;
+    }
+
+    .session-expired-link {
+      color: #fde68a;
+      margin-left: 0.5rem;
+      text-decoration: underline;
+      font-weight: 700;
+    }
+
     /* ── Keyframes ───────────────────────────────────────────────────────── */
     @keyframes reload-pulse {
       0%, 100% { opacity: 1; }
@@ -247,9 +272,16 @@ export class App implements OnDestroy {
   readonly checking = signal(false);
   /** Briefly true after a manual check finds no update. Auto-clears after 2 s. */
   readonly upToDate = signal(false);
+  /** True when the session poll detects the SWA session has expired mid-session. */
+  readonly sessionExpired = signal(false);
+  readonly sessionExpiredLoginUrl = computed(() => {
+    const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+    return `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
+  });
 
   private readonly swUpdate = inject(SwUpdate);
   private pollTimer: ReturnType<typeof setInterval> | null = null;
+  private sessionPollTimer: ReturnType<typeof setInterval> | null = null;
   private upToDateTimer: ReturnType<typeof setTimeout> | null = null;
   private visibilityHandler: (() => Promise<void>) | null = null;
 
@@ -270,6 +302,20 @@ export class App implements OnDestroy {
       }, UPDATE_POLL_MS);
     }
 
+    // ── Proactive session expiry detection ─────────────────────────────────
+    // The visibilitychange handler catches foreground→background→foreground
+    // transitions. This poll handles session expiry while the app stays
+    // continuously in the foreground (e.g., KDS left open overnight).
+    this.sessionPollTimer = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const res = await fetch('/.auth/me', { credentials: 'same-origin' });
+        if (!res.ok) return;
+        const json: { clientPrincipal: unknown } = await res.json();
+        if (json?.clientPrincipal == null) this.sessionExpired.set(true);
+      } catch { /* offline — ignore */ }
+    }, SESSION_POLL_MS);
+
     // ── Offline / online detection ──────────────────────────────────────────
     merge(
       fromEvent(window, 'online').pipe(map(() => false)),
@@ -289,7 +335,8 @@ export class App implements OnDestroy {
         if (res.ok) {
           const json: { clientPrincipal: unknown } = await res.json();
           if (json?.clientPrincipal == null) {
-            window.location.href = '/.auth/login/aad';
+            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
+            window.location.href = `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
             return;
           }
         }
@@ -301,8 +348,9 @@ export class App implements OnDestroy {
   }
 
   ngOnDestroy(): void {
-    if (this.pollTimer)       clearInterval(this.pollTimer);
-    if (this.upToDateTimer)   clearTimeout(this.upToDateTimer);
+    if (this.pollTimer)        clearInterval(this.pollTimer);
+    if (this.sessionPollTimer) clearInterval(this.sessionPollTimer);
+    if (this.upToDateTimer)    clearTimeout(this.upToDateTimer);
     if (this.visibilityHandler) {
       document.removeEventListener('visibilitychange', this.visibilityHandler);
     }

@@ -54,12 +54,26 @@ export const resilienceInterceptor: HttpInterceptorFn = (req, next) => {
           return timer(delay).pipe(switchMap(() => attempt$()));
         }
 
+        // ── 401: raw SWA unauthorized — redirect immediately, no auth check ──
+        // (SWA normally converts 401→302→CORS-block→status 0, but belt-and-
+        //  suspenders for edge cases and the SW transition window after Fix 1)
+        if (status === 401) {
+          const returnUrl = encodeURIComponent(
+            doc.defaultView!.location.pathname + doc.defaultView!.location.search
+          );
+          doc.defaultView!.location.href = `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
+          return NEVER;
+        }
+
         // ── Status 0 while online: likely SWA auth redirect (CORS block) ───
         if (status === 0 && navigator.onLine) {
           return from(checkAuth()).pipe(
             switchMap(authed => {
               if (!authed) {
-                doc.defaultView!.location.href = '/.auth/login/aad';
+                const returnUrl = encodeURIComponent(
+                  doc.defaultView!.location.pathname + doc.defaultView!.location.search
+                );
+                doc.defaultView!.location.href = `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
                 return NEVER;
               }
               if (attempt < 1) {

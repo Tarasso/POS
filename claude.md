@@ -736,6 +736,45 @@ A functional `HttpInterceptorFn` applied to `/api/*` requests only.
 37. **Status 0 on offline is handled separately** — the interceptor only triggers the `/.auth/me` auth check when `navigator.onLine` is true. When offline, status-0 errors pass through to the service's error handler; the existing offline banner (in `app.ts`) covers that case.
 38. **Visibility pre-warm fires on every foreground** — this is intentional. The health ping is cheap (~50 ms) and safe to call repeatedly. Azure Functions ignores duplicate calls; the benefit on first open after a long break outweighs the negligible overhead.
 
+## Auth Resilience Fixes
+
+Two root causes were identified for intermittent 401 failures on mobile:
+
+**Mode A — Infinite auth-redirect loop (primary):** When the resilience interceptor or `visibilitychange` handler redirect to `/.auth/login/aad`, NGSW's `navigationRequestStrategy: "performance"` intercepts that navigation and serves the cached `index.html` instead of the real Microsoft login page. Angular boots, finds no auth, redirects to login, NGSW intercepts again → infinite loop. This also explains why private browsing doesn't help: NGSW calls `clients.claim()` on install and takes control before the first redirect fires.
+
+**Mode B — Post-login 401 loop:** When the user successfully authenticates with Microsoft but SWA's role check fails (role not yet propagated to all CDN edge nodes), the old `responseOverrides` redirected every 401 back to `/.auth/login/aad`. Since Microsoft immediately re-authenticates an already-signed-in user, this created an identical loop — user sees the Microsoft login screen repeatedly with no explanation.
+
+### What was built
+
+**`ngsw-config.json`**
+- Added `navigationUrls: ["/**", "!/.auth/**"]` — NGSW now passes all `/.auth/*` navigations directly to the network instead of serving the cached SPA. This is the primary fix for Mode A.
+
+**`src/app/core/interceptors/resilience.interceptor.ts`**
+- Added `status === 401` branch that redirects immediately to login (no `/.auth/me` check needed — a raw 401 is already definitive). Belt-and-suspenders for edge cases and for the SW transition window after the `ngsw-config.json` change rolls out.
+- Added `post_login_redirect_uri` to both the 401 and status-0 redirect paths so the user lands back on the correct page (`/order`, `/kds`, etc.) after re-authentication.
+
+**`src/app/app.ts`**
+- `visibilitychange` redirect now includes `post_login_redirect_uri` return URL.
+- New `sessionPollTimer` (10-minute interval, `SESSION_POLL_MS`) that polls `/.auth/me` while the app is visible. Handles the case where the session expires while the app stays continuously in the foreground (e.g., KDS left open overnight) — the `visibilitychange` handler never fires in that scenario.
+- New `sessionExpired` signal + `sessionExpiredLoginUrl` computed property drive a dark-red "Session expired — Sign in" banner. Non-disruptive (no auto-redirect); the user signs in when ready.
+
+**`staticwebapp.config.json`**
+- Added `{ "route": "/access-denied.html", "allowedRoles": ["anonymous"] }` before the `/*` catch-all.
+- Changed `responseOverrides.401` from `/.auth/login/aad` to `/access-denied.html` — breaks the Mode B loop.
+
+**`public/access-denied.html`** (new)
+- Static HTML page (no Angular, no service worker). On load it calls `/.auth/me`:
+  - If not authenticated → auto-redirects to login (preserves old UX for unauthenticated users).
+  - If authenticated but no role → shows "Access Denied" with the signed-in account name and a "Sign out & sign back in" button (`/.auth/logout?post_logout_redirect_uri=/.auth/login/aad`). Signing out and back in forces a fresh role-check and often resolves propagation-delay issues.
+
+### Auth Resilience Gotchas
+
+39. **NGSW intercepts `/.auth/login/aad` navigation unless explicitly excluded** — `navigationRequestStrategy: "performance"` matches ALL same-origin navigations by default, including auth redirects. The fix is `"navigationUrls": ["/**", "!/.auth/**"]` in `ngsw-config.json`. Without this, any `window.location.href = '/.auth/login/aad'` call causes an infinite loop on devices where the service worker is active.
+40. **NGSW takes control immediately via `clients.claim()`** — Angular's SW calls `clients.claim()` on activation, meaning it controls the current page on the very first visit before any reload. Private browsing doesn't bypass this: the SW installs during the session and claims the page before the first auth redirect fires.
+41. **SWA `responseOverrides` 401 → login creates a loop when already authenticated** — if the user is signed in to Microsoft but has no SWA role, every 401 redirects to login, Microsoft immediately re-authenticates them (no credential prompt), they return to SWA, role check fails again → infinite loop. Always redirect 401 to an intermediate page that can distinguish "not authenticated" from "authenticated but no role".
+42. **Static files with extensions bypass NGSW navigation interception** — NGSW's built-in navigation URL matching excludes paths containing `.*` (file extensions). `access-denied.html` is served directly from the network without NGSW interference, which is what makes it safe to use as the 401 landing page.
+43. **SWA role propagation delay across CDN edge nodes** — after assigning a role in Azure Portal, it can take a few minutes to propagate to all edge nodes. A user hitting an un-propagated node gets a 401 even though their role exists. The "Sign out & sign back in" path on `access-denied.html` starts a new session that re-checks roles (and often hits a different node or fresh cache). If a user reports persistent 401 after role assignment, wait 5 minutes and have them sign out/in.
+
 ## Not in Scope
 - Tax, payments, multi-tenant, push notifications, order editing
 - Only two order states ever exist: "open" and "completed"
