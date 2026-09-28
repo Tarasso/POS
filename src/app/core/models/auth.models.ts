@@ -8,6 +8,8 @@ export interface Session {
   name?: string;
   /** Set when signed in with Microsoft but not invited (no staff/owner role). */
   microsoftUser?: string | null;
+  /** Guest JWT — returned on PIN login and when the server refreshes it. Stored separately, never cached in the session. */
+  guestToken?: string;
 }
 
 /** Guest account as returned by GET /api/guests — PIN is never sent back. */

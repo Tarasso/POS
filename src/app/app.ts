@@ -335,7 +335,7 @@ export class App implements OnDestroy {
     // The visibilitychange handler catches foreground→background→foreground
     // transitions. This poll handles session expiry while the app stays
     // continuously in the foreground (e.g., KDS left open overnight).
-    // Microsoft sessions expire; guest cookies only end on sign-out or revoke.
+    // Microsoft sessions expire; guest tokens only end on sign-out or revoke.
     this.sessionPollTimer = setInterval(async () => {
       if (document.visibilityState !== 'visible' || this.onLoginPage()) return;
       try {

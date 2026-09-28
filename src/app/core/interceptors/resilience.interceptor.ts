@@ -3,7 +3,7 @@ import { DOCUMENT } from '@angular/common';
 import { inject } from '@angular/core';
 import { throwError, timer, NEVER } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
-import { SESSION_CACHE_KEY } from '../services/auth.service';
+import { clearStoredAuth } from '../services/auth.service';
 
 /**
  * Retry delays for Azure Functions cold-start (504).
@@ -46,7 +46,7 @@ export const resilienceInterceptor: HttpInterceptorFn = (req, next) => {
         if (status === 401 && !isAuthCall) {
           const loc = doc.defaultView!.location;
           if (!loc.pathname.startsWith('/login')) {
-            try { localStorage.removeItem(SESSION_CACHE_KEY); } catch { /* ignore */ }
+            clearStoredAuth();
             const returnUrl = encodeURIComponent(loc.pathname + loc.search);
             loc.href = `/login?returnUrl=${returnUrl}`;
           }

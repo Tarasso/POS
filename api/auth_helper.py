@@ -9,12 +9,15 @@ Two kinds of identity are accepted:
      `userRoles`. SWA sets this header itself; clients cannot forge it because
      managed Functions are only reachable through the SWA front door.
 
-  2. Guest (4-digit PIN) — POST /api/auth/guest-login sets an HttpOnly cookie
-     holding an HS256 JWT signed with GUEST_TOKEN_SECRET. Claims:
+  2. Guest (4-digit PIN) — POST /api/auth/guest-login returns `guestToken`, an
+     HS256 JWT signed with GUEST_TOKEN_SECRET. The SPA keeps it in localStorage
+     and sends it on every /api call as the `X-Guest-Token` header.
+     (Not a cookie: SWA strips Set-Cookie from managed-Function responses.)
+     Claims:
        sub — guest document id ("guest_...")
        ver — the guest's tokenVersion at sign-in; bumping it on the guest doc
              (PIN change / "sign out devices") invalidates every issued token
-       iat — issued-at (used for sliding cookie refresh)
+       iat — issued-at (used for sliding token refresh)
 
 Every route calls `authorize(req, roles)` first:
 
@@ -36,7 +39,6 @@ import os
 import secrets
 import time
 from dataclasses import dataclass
-from http.cookies import SimpleCookie
 
 import azure.functions as func
 import jwt  # PyJWT
@@ -54,11 +56,11 @@ OWNER_ROLES: frozenset[str] = frozenset({"owner", "staff"})
 ANY_ROLE: frozenset[str] = frozenset({"owner", "staff", "guest"})
 """Order taking + KDS — everyone who is signed in, including PIN guests."""
 
-# ── Guest token / cookie settings ──────────────────────────────────────────────
+# ── Guest token settings ───────────────────────────────────────────────────────
 
-GUEST_COOKIE = "pos_guest"
+GUEST_TOKEN_HEADER = "x-guest-token"
 GUEST_DOC_TYPE = "guest"
-_TOKEN_TTL_SECONDS = 400 * 24 * 3600      # 400 days — the maximum browsers honour
+_TOKEN_TTL_SECONDS = 400 * 24 * 3600      # 400 days
 _TOKEN_REFRESH_AFTER_SECONDS = 7 * 24 * 3600  # reissue weekly → never expires while used
 _GUEST_CACHE_SECONDS = 60                 # how long a guest doc lookup is reused
 
@@ -124,19 +126,6 @@ def _microsoft_principal(req: func.HttpRequest) -> Principal | None:
     )
 
 
-def _read_cookie(req: func.HttpRequest, name: str) -> str | None:
-    header = req.headers.get("cookie")
-    if not header:
-        return None
-    try:
-        jar = SimpleCookie()
-        jar.load(header)
-    except Exception:  # noqa: BLE001
-        return None
-    morsel = jar.get(name)
-    return morsel.value if morsel else None
-
-
 def load_guest(guest_id: str, use_cache: bool = True) -> dict | None:
     """Point-read a guest doc (1 RU), cached briefly per worker instance."""
     now = time.monotonic()
@@ -158,7 +147,7 @@ def forget_guest(guest_id: str) -> None:
 
 
 def _guest_principal(req: func.HttpRequest) -> Principal | None:
-    token = _read_cookie(req, GUEST_COOKIE)
+    token = (req.headers.get(GUEST_TOKEN_HEADER) or "").strip()
     secret = get_guest_secret()
     if not token or not secret:
         return None
@@ -190,7 +179,7 @@ def _guest_principal(req: func.HttpRequest) -> Principal | None:
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 def get_principal(req: func.HttpRequest) -> Principal | None:
-    """Return the caller's identity, preferring a Microsoft session over a guest cookie."""
+    """Return the caller's identity, preferring a Microsoft session over a guest token."""
     return _microsoft_principal(req) or _guest_principal(req)
 
 
@@ -206,7 +195,7 @@ def authorize(
     return principal, None
 
 
-# ── Guest tokens + cookies ─────────────────────────────────────────────────────
+# ── Guest tokens ───────────────────────────────────────────────────────────────
 
 def issue_guest_token(guest: dict) -> str:
     secret = get_guest_secret()
@@ -227,26 +216,6 @@ def token_needs_refresh(principal: Principal) -> bool:
         and principal.token_iat is not None
         and time.time() - principal.token_iat > _TOKEN_REFRESH_AFTER_SECONDS
     )
-
-
-def _is_local(req: func.HttpRequest) -> bool:
-    host = (req.headers.get("x-forwarded-host") or req.headers.get("host") or "").lower()
-    return host.startswith("localhost") or host.startswith("127.0.0.1")
-
-
-def guest_cookie_header(req: func.HttpRequest, token: str | None) -> str:
-    """Build the Set-Cookie value. token=None clears the cookie."""
-    parts = [
-        f"{GUEST_COOKIE}={token or ''}",
-        "Path=/api",
-        "HttpOnly",
-        "SameSite=Lax",
-        f"Max-Age={_TOKEN_TTL_SECONDS if token else 0}",
-    ]
-    # Safari refuses Secure cookies on http://localhost, so omit it for local dev.
-    if not _is_local(req):
-        parts.append("Secure")
-    return "; ".join(parts)
 
 
 # ── PIN hashing ────────────────────────────────────────────────────────────────

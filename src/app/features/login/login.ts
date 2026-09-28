@@ -44,7 +44,7 @@ export class Login implements OnInit {
       return;
     }
     // Picks up a Microsoft session (e.g. returning from /.auth/login/aad) or a
-    // still-valid guest cookie whose cached session was cleared.
+    // still-valid guest token whose cached session was cleared.
     this.auth.refresh()
       .then(s => { if (s.authenticated) this.router.navigateByUrl(this.returnUrl); })
       .catch(() => { /* API unreachable — the PIN pad still works once it wakes */ });
