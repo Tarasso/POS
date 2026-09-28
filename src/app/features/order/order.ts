@@ -3,6 +3,7 @@ import { CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MenuService } from '../../core/services/menu.service';
 import { OrderService } from '../../core/services/order.service';
+import { onPullRefresh } from '../../core/services/pull-refresh.service';
 import { CategoryWithItems, MenuItem, ModifierGroupWithOptions } from '../../core/models/menu.models';
 import { AppliedModifier, CartItem } from '../../core/models/order.models';
 
@@ -26,6 +27,11 @@ export class Order implements OnInit {
   private menuService = inject(MenuService);
   private orderService = inject(OrderService);
   private cdr = inject(ChangeDetectorRef);
+
+  constructor() {
+    // Pull-to-refresh reloads the menu (sold-out flags, prices) — the cart is kept.
+    onPullRefresh(() => this.menuService.loadMenu());
+  }
 
   // ── Menu state ────────────────────────────────────────────────────────────
   readonly menu = this.menuService.menu;

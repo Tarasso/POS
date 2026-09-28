@@ -425,6 +425,16 @@ $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\Stat
 49. **Azure SWA strips `Set-Cookie` from managed-Function responses** (the SWA CLI does not, so cookies work locally). The first guest-login release used an HttpOnly cookie: login succeeded in production but the browser never received the cookie, so the next call 401'd and bounced back to `/login`. Guest auth now uses the `X-Guest-Token` header. Never rely on Functions setting cookies in this app.
 50. **Guest tokens in a Safari *tab* (not installed) can be wiped by ITP** after ~7 days without visiting the site. Installed home-screen PWAs are exempt. Guests who use the site regularly should "Add to Home Screen".
 
+### Mobile nav + pull-to-refresh (iPhone standalone PWA)
+
+- **Nav** (`app.ts`): links row is `min-width: 0; overflow-x: auto` so it shrinks/scrolls *inside* the bar instead of widening the page. Right side = ↻ update button + "Hi, {first name}" chip that opens an account menu (name, role, Sign out). ≤480px hides the POS wordmark and tightens padding. Side padding uses `env(safe-area-inset-left/right)` for landscape.
+- **First name**: guests use their guest name; Microsoft users get the `name` claim from `/.auth/me` (the API only sees the email) — fetched in `AuthService.refresh()`.
+- **Global** (`styles.scss`): `overflow-x: clip` on html/body (not `hidden` — that breaks `position: sticky`), `overscroll-behavior-y: none` to kill iOS rubber-band + native pull-to-refresh, which slid the page under the fixed nav.
+- **Custom pull-to-refresh** (`app.ts` + `PullRefreshService`): indicator slides out from *under* the nav; pages register an in-place refresh with `onPullRefresh(fn)` in their constructor (Order → menu, KDS → resync orders, Admin → menu/guests, Analytics → current filter). No handler → full reload. Drags starting in fixed elements (sheets, panels, nav) or scrolled boxes are ignored, so bottom sheets scroll normally.
+
+51. **Don't put `overflow-x: hidden` on html/body** — it makes body a scroll container and silently breaks every `position: sticky` header. Use `overflow-x: clip`.
+52. **A new page should call `onPullRefresh(...)`** or pull-to-refresh will do a full reload there (losing in-memory state such as a cart).
+
 ### SWA Built-in Auth (Entra ID / Microsoft)
 
 **How it works:**

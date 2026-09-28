@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject, signal } from '@angular/core';
 import { DOCUMENT, DatePipe } from '@angular/common';
 import { KdsService } from '../../core/services/kds.service';
+import { onPullRefresh } from '../../core/services/pull-refresh.service';
 import { AppliedModifier } from '../../core/models/order.models';
 
 /** One row in the grouped modifier display — all options from one modifier group. */
@@ -43,6 +44,14 @@ export class Kds implements OnInit, OnDestroy {
   // synthesising dblclick from two quick taps is stricter than on iPad/desktop.
   private lastClickTime = new Map<string, number>();
   private readonly DOUBLE_TAP_MS = 400;
+
+  constructor() {
+    // Pull-to-refresh = same resync as returning to the foreground.
+    onPullRefresh(() => {
+      this.onVisible();
+      if (this.showCompleted()) this.kdsService.loadCompletedOrders();
+    });
+  }
 
   // ── 1-second tick to drive live timers ───────────────────────────────────
   private readonly tick = signal(0);

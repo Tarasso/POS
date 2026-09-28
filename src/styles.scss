@@ -58,6 +58,19 @@ html,
 body {
   margin: 0;
   padding: 0;
+  /* Never scroll sideways. `clip` (not `hidden`) so position: sticky headers
+     inside pages keep working. */
+  overflow-x: clip;
+  /* Turn off iOS rubber-band bounce + native pull-to-refresh: it slid the page
+     down under the fixed nav bar. The app draws its own pull-to-refresh
+     below the nav instead (App component). */
+  overscroll-behavior-y: none;
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
