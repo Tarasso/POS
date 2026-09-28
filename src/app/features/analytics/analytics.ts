@@ -3,6 +3,8 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AnalyticsService } from '../../core/services/analytics.service';
 import { onPullRefresh } from '../../core/services/pull-refresh.service';
+import { CounterService } from '../../core/services/counter.service';
+import { CounterEvent, CounterSnapshot } from '../../core/models/counter.models';
 import { ModifierGroupStat } from '../../core/models/analytics.models';
 import { Order } from '../../core/models/order.models';
 
@@ -56,9 +58,91 @@ export class Analytics implements OnInit {
     return '';
   });
 
+  // ── Ticket Counter results ────────────────────────────────────────────────
+  private counterSvc = inject(CounterService);
+  readonly view = signal<'orders' | 'counter'>('orders');
+  readonly counterEvents = signal<CounterEvent[]>([]);
+  readonly counterEventsLoading = signal(false);
+  readonly selectedCounterId = signal<string | null>(null);
+  readonly counterResults = signal<CounterSnapshot | null>(null);
+  readonly counterResultsLoading = signal(false);
+  readonly counterError = signal<string | null>(null);
+
+  /** Drinks × stations table for the selected counter event. */
+  readonly counterReport = computed(() => {
+    const snap = this.counterResults();
+    const ev = snap?.event;
+    if (!snap || !ev) return null;
+    const stations = Array.from({ length: ev.stationCount }, (_, i) => i + 1);
+    const byItem = new Map<string, { name: string; counts: number[] }>();
+    // Current drinks first, in the owner's order…
+    for (const item of ev.items) byItem.set(item.id, { name: item.name, counts: stations.map(() => 0) });
+    // …then any tallies for drinks removed since (name kept on the tally).
+    const liveIds = new Set(ev.items.map(i => i.id));
+    for (const t of snap.tallies) {
+      if (!byItem.has(t.itemId)) byItem.set(t.itemId, { name: t.itemName, counts: stations.map(() => 0) });
+      const row = byItem.get(t.itemId)!;
+      if (t.station >= 1 && t.station <= stations.length) row.counts[t.station - 1] += t.count;
+    }
+    const rows = [...byItem.entries()]
+      .map(([itemId, r]) => ({
+        itemId, name: r.name, byStation: r.counts,
+        total: r.counts.reduce((a, b) => a + b, 0),
+        removed: !liveIds.has(itemId),
+      }))
+      .filter(r => !r.removed || r.total > 0);
+    const stationTotals = stations.map((_, i) => rows.reduce((sum, r) => sum + r.byStation[i], 0));
+    return {
+      name: ev.name, createdAt: ev.createdAt, stations, rows, stationTotals,
+      total: stationTotals.reduce((a, b) => a + b, 0),
+    };
+  });
+
   constructor() {
-    // Pull-to-refresh re-runs the current filter.
-    onPullRefresh(() => { this.svc.loadEvents(); this.svc.loadAll(); });
+    // Pull-to-refresh re-runs the current filter / reloads the counter view.
+    onPullRefresh(() => {
+      if (this.view() === 'counter') {
+        this.loadCounterEvents();
+        const id = this.selectedCounterId();
+        if (id) this.selectCounterEvent(id);
+      } else {
+        this.svc.loadEvents();
+        this.svc.loadAll();
+      }
+    });
+  }
+
+  setView(view: 'orders' | 'counter'): void {
+    this.view.set(view);
+    if (view === 'counter' && this.counterEvents().length === 0) this.loadCounterEvents(true);
+  }
+
+  private loadCounterEvents(selectFirst = false): void {
+    this.counterEventsLoading.set(true);
+    this.counterSvc.listEvents().subscribe({
+      next: (res) => {
+        this.counterEvents.set(res.events);
+        this.counterEventsLoading.set(false);
+        // Open the active (or newest) event straight away.
+        if (selectFirst && !this.selectedCounterId() && res.events.length) {
+          this.selectCounterEvent((res.events.find(e => e.active) ?? res.events[0]).id);
+        }
+      },
+      error: () => {
+        this.counterEventsLoading.set(false);
+        this.counterError.set('Failed to load counter events.');
+      },
+    });
+  }
+
+  selectCounterEvent(id: string): void {
+    this.selectedCounterId.set(id);
+    this.counterResultsLoading.set(true);
+    this.counterError.set(null);
+    this.counterSvc.results(id).subscribe({
+      next: (snap) => { this.counterResults.set(snap); this.counterResultsLoading.set(false); },
+      error: () => { this.counterResultsLoading.set(false); this.counterError.set('Failed to load results.'); },
+    });
   }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────

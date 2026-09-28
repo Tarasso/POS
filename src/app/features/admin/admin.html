@@ -16,6 +16,11 @@
         + Guest
       </button>
     }
+    @if (activeTab() === 'counter') {
+      <button class="btn btn-primary" (click)="openNewCounter()" [disabled]="saving() || editingCounterId() !== null">
+        + Event
+      </button>
+    }
   </header>
 
   <!-- ── Tab bar ──────────────────────────────────────────────────────────── -->
@@ -28,6 +33,9 @@
     </button>
     <button class="tab-btn" [class.active]="activeTab() === 'guests'" (click)="setTab('guests')">
       Guests
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'counter'" (click)="setTab('counter')">
+      Counter
     </button>
   </nav>
 
@@ -591,6 +599,95 @@
       </section>
     } @else if (!guestsLoading() && !showAddGuest()) {
       <p class="empty">No guests yet. Add one to hand out a PIN.</p>
+    }
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       TICKET COUNTER TAB
+  ══════════════════════════════════════════════════════════════════════════ -->
+  @if (activeTab() === 'counter') {
+    <p class="guest-intro">
+      For prepaid-ticket events: each station taps a drink on the <b>Counter</b> screen when it
+      hands one out. Only the <b>active</b> event appears there. Guests can use it too.
+    </p>
+
+    @if (counterError()) {
+      <div class="error-banner">{{ counterError() }}</div>
+    }
+
+    @if (editingCounterId(); as editingId) {
+      <div class="inline-form card">
+        <h3>{{ editingId === 'new' ? 'New Counter Event' : 'Edit Counter Event' }}</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="field-label">Event name *</label>
+            <input class="input" type="text" placeholder="e.g. Smith Wedding" [(ngModel)]="counterForm.name" />
+          </div>
+          <div class="form-field form-field-short">
+            <label class="field-label">Stations</label>
+            <input class="input" type="number" min="1" max="6" [(ngModel)]="counterForm.stationCount" />
+          </div>
+        </div>
+
+        <label class="field-label">Drinks *</label>
+        <ul class="counter-item-list">
+          @for (item of counterForm.items; track trackByIndex($index); let i = $index, first = $first, last = $last) {
+            <li class="counter-item-row">
+              <input class="input" type="text" [placeholder]="'Drink ' + (i + 1)" [(ngModel)]="item.name" />
+              <button class="btn btn-ghost btn-sm" (click)="moveCounterItem(i, -1)" [disabled]="first" aria-label="Move up">↑</button>
+              <button class="btn btn-ghost btn-sm" (click)="moveCounterItem(i, 1)" [disabled]="last" aria-label="Move down">↓</button>
+              <button class="btn btn-danger btn-sm" (click)="removeCounterItem(i)" aria-label="Remove">✕</button>
+            </li>
+          }
+        </ul>
+        <button class="btn btn-ghost btn-sm add-option-btn" (click)="addCounterItem()">+ Add drink</button>
+
+        @if (editingId !== 'new') {
+          <p class="guest-meta">Renaming a drink keeps its counts.</p>
+        }
+        @if (counterFormError()) { <p class="form-error">{{ counterFormError() }}</p> }
+        <div class="form-actions">
+          <button class="btn btn-primary" (click)="saveCounterForm()" [disabled]="saving()">
+            {{ editingId === 'new' ? 'Create & start' : 'Save' }}
+          </button>
+          <button class="btn btn-ghost" (click)="cancelCounterForm()">Cancel</button>
+        </div>
+      </div>
+    }
+
+    @if (counterLoading() && counterEvents().length === 0) {
+      <p class="loading">Loading…</p>
+    }
+
+    @for (ev of counterEvents(); track ev.id) {
+      <section class="card counter-event-card" [class.counter-active]="ev.active">
+        <div class="group-header">
+          <div class="group-header-left">
+            <span class="group-name">{{ ev.name }}</span>
+            @if (ev.active) { <span class="badge badge-default">Active</span> }
+          </div>
+          <div class="group-actions">
+            <button class="btn btn-ghost btn-sm" (click)="toggleCounterActive(ev)" [disabled]="saving()">
+              {{ ev.active ? 'Stop' : 'Make active' }}
+            </button>
+            <button class="btn btn-ghost btn-sm" (click)="startEditCounter(ev)" [disabled]="saving() || editingCounterId() !== null">Edit</button>
+            <button class="btn btn-danger btn-sm" (click)="deleteCounter(ev)" [disabled]="saving()">Delete</button>
+          </div>
+        </div>
+        <p class="guest-meta">
+          {{ ev.createdAt | date:'MMM d, y' }} · {{ ev.stationCount }} station{{ ev.stationCount === 1 ? '' : 's' }}
+          · {{ ev.totalCount ?? 0 }} drinks counted
+        </p>
+        <div class="modifier-chips">
+          @for (item of ev.items; track item.id) {
+            <span class="badge counter-chip">{{ item.name }}</span>
+          }
+        </div>
+      </section>
+    } @empty {
+      @if (!counterLoading() && editingCounterId() === null) {
+        <p class="empty">No counter events yet. Tap “+ Event” to set up your drinks.</p>
+      }
     }
   }
 </div>

@@ -3,6 +3,7 @@ import azure.functions as func
 
 from analytics_routes import analytics_bp
 from auth_helper import ANY_ROLE, authorize
+from counter_routes import counter_bp
 from guest_routes import guest_bp
 from menu_routes import menu_bp
 from order_routes import order_bp
@@ -15,6 +16,7 @@ app.register_blueprint(menu_bp)
 app.register_blueprint(order_bp)
 app.register_blueprint(analytics_bp)
 app.register_blueprint(guest_bp)
+app.register_blueprint(counter_bp)
 
 
 @app.route(route="health", methods=["GET"])
