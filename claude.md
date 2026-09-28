@@ -145,6 +145,15 @@ GET    /api/analytics/summary                   → aggregate stats
 GET    /api/analytics/orders                    → historical orders
 
 POST   /api/negotiate                           → SignalR connection handshake
+
+GET    /api/auth/session                        → { authenticated, kind, role, name } (public, always 200)
+POST   /api/auth/guest-login                    → { pin } → sets guest cookie (public, throttled)
+POST   /api/auth/logout                         → clears guest cookie (public)
+GET    /api/guests                              → list guest accounts (owner/staff)
+POST   /api/guests                              → create { name, pin }
+PUT    /api/guests/{id}                         → update { name?, pin? } — new PIN signs guest out everywhere
+POST   /api/guests/{id}/revoke                  → sign guest out on every device
+DELETE /api/guests/{id}                         → delete guest
 ```
 
 ## SignalR
@@ -186,6 +195,8 @@ Build strictly in this order. Each phase ships working end-to-end before the nex
 - **Phase 3**: ✅ KDS — SignalR setup, order cards, live timer, complete action
 - **Phase 4**: ✅ Analytics — aggregation queries, dashboard
 - **Phase 5**: ✅ Polish — PWA dual-manifest install, safe-area CSS, error recovery affordances, SW update + offline banners
+
+> **Guest PIN login** (shipped 2026-09-27): 4-digit PIN guests with Order + KDS access only, managed from Admin → Guests. See **Security → Guest PIN Login**.
 
 > **Auth** (shipped between Phase 4 and 5): SWA built-in auth with Entra ID (Microsoft). Role-based access via Azure Portal invitations. See **Security** section.
 
@@ -391,16 +402,33 @@ $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\Stat
 
 ## Security
 
+> **Superseded by Guest PIN Login (below):** the CDN no longer enforces roles. The static
+> site is public so the `/login` PIN screen can load; **every Function enforces roles itself**
+> via `auth_helper.authorize()`. The notes below still describe how Microsoft sign-in and
+> role invitations work.
+
+### Guest PIN Login
+
+- **Roles**: `owner`/`staff` (Microsoft, invited) = everything. `guest` (PIN) = Order + KDS only.
+- **`api/auth_helper.py`** — `authorize(req, OWNER_ROLES | ANY_ROLE)` at the top of every route. Microsoft users come from SWA's `x-ms-client-principal` header; guests from the `pos_guest` HttpOnly cookie (HS256 JWT, `Path=/api`, 400-day Max-Age, reissued weekly while used).
+- **`api/guest_routes.py`** — session/login/logout + guest CRUD. Guest docs live in the `menu` container, partition `guest` (`pinHash`/`pinSalt` PBKDF2, `tokenVersion`). Bumping `tokenVersion` (PIN change, "Sign out" in admin) invalidates all of that guest's cookies. PINs are unique across guests; login is PIN-only.
+- **Brute-force throttle**: global — 10 failed PINs per rolling 30 min locks guest login (429) until the oldest failure ages out. Stored in doc `guest_login_throttle` (partition `guest_throttle`). Microsoft sign-in unaffected.
+- **App setting `GUEST_TOKEN_SECRET`** (SWA app settings + `api/local.settings.json`) — long random string. Missing → guest login returns 503, admin Guests tab shows a warning. Rotating it signs every guest out.
+- **Frontend**: `AuthService` (session signal cached in localStorage `pos_session` for instant cold-start), `signedInGuard` / `fullAccessGuard`, `/login` page (PIN keypad + "Sign in with Microsoft"), admin **Guests** tab. Interceptor sends any non-`/api/auth/*` 401 to `/login?returnUrl=`.
+
+### Guest Login Gotchas
+
+44. **Guest docs are cached per Functions worker for 60 s** (`auth_helper._GUEST_CACHE_SECONDS`). A revoke/delete takes effect immediately on the instance that handled it, within 60 s elsewhere.
+45. **iOS home-screen PWAs have their own cookie jar** — a guest who signs in via Safari and then taps "Add to Home Screen" must enter the PIN once more inside the installed app.
+46. **`x-ms-client-principal` is trusted because managed Functions are only reachable through SWA.** If the API is ever moved to a standalone ("bring your own") Function App, this must be revisited.
+47. **Local `func start` imports from `api\.venv` — keep it in sync with `requirements.txt`.** `auth_helper` imports PyJWT on every route, so a venv missing a package makes *every* route 404 ("Worker failed to index functions" / `No module named 'jwt'`). Fix: `api\.venv\Scripts\python.exe -m pip install -r api\requirements.txt`, then restart `func`.
+48. **`public/access-denied.html` and the `responseOverrides` 401 redirect were removed** — the CDN no longer returns 401, and `/login` covers the "signed in with Microsoft but not invited" case.
+
 ### SWA Built-in Auth (Entra ID / Microsoft)
 
-Authentication is enforced at the **Azure CDN layer** — unauthenticated requests never reach Angular or Azure Functions.
-
 **How it works:**
-- `staticwebapp.config.json` protects `/*` and `/api/*` with `allowedRoles: ["staff", "owner"]`
-- `/.auth/*` stays open to `anonymous` (login/logout/me endpoints must be reachable before auth)
-- Any 401 auto-redirects to `/.auth/login/aad` (Microsoft sign-in)
-- After sign-in, SWA sets a secure httpOnly cookie; user lands back on the app
-- Sign Out link in the nav bar points to `/.auth/logout`
+- `/.auth/login/aad` → Microsoft sign-in; SWA sets a secure httpOnly cookie and adds invitation roles to `x-ms-client-principal`
+- Sign out (nav bar) → `/.auth/logout?post_logout_redirect_uri=/login` for Microsoft users, `POST /api/auth/logout` for guests
 
 **Role management (Azure Portal):**
 1. Azure Portal → `swa-pos-kylem` → Settings → **Authentication** — Entra ID and GitHub providers are pre-enabled in Simple mode
@@ -413,7 +441,7 @@ Authentication is enforced at the **Azure CDN layer** — unauthenticated reques
 **Local dev:**
 `swa start` serves a mock auth form at `http://localhost:4280/.auth/login/aad`. Fill in any name/email and type `staff` in the roles field. No real Microsoft account needed.
 
-**Azure Functions `AuthLevel.ANONYMOUS` is intentional** — the SWA CDN blocks unauthenticated traffic before it ever reaches the function runtime. The auth level setting only affects direct Function URL access, which is not exposed here.
+**Azure Functions `AuthLevel.ANONYMOUS` is intentional** — roles are enforced in code by `auth_helper.authorize()` on every route (see Guest PIN Login). Only `/api/health` and `/api/auth/*` are public.
 
 ## Phase 5 Outcomes
 

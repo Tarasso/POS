@@ -23,6 +23,22 @@ export class KdsService {
   /** Non-null when the initial GET /api/orders fetch failed. */
   readonly loadError = signal<string | null>(null);
 
+  /**
+   * IDs completed recently (by this or any other device). A GET /api/orders
+   * response that was already in flight when the completion happened would
+   * otherwise re-add a finished order as a ghost card.
+   */
+  private readonly recentlyCompleted = new Set<string>();
+
+  private markCompleted(orderId: string): void {
+    this.recentlyCompleted.add(orderId);
+    if (this.recentlyCompleted.size > 500) {
+      // Sets iterate in insertion order — drop the oldest.
+      this.recentlyCompleted.delete(this.recentlyCompleted.values().next().value!);
+    }
+    this.orders.update(list => list.filter(o => o.id !== orderId));
+  }
+
   // ── Initial data load ──────────────────────────────────────────────────────
 
   /**
@@ -33,9 +49,9 @@ export class KdsService {
     this.http.get<{ orders: Order[] }>('/api/orders?status=open').subscribe({
       next: (data) => {
         // Sort oldest-first so top-left card is the most urgent.
-        const sorted = [...data.orders].sort((a, b) =>
-          a.createdAt.localeCompare(b.createdAt)
-        );
+        const sorted = data.orders
+          .filter(o => !this.recentlyCompleted.has(o.id))
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
         this.orders.set(sorted);
         this.loadError.set(null);
       },
@@ -65,13 +81,18 @@ export class KdsService {
     // ── Event handlers ───────────────────────────────────────────────────────
     this.hubConnection.on('orderCreated', (order: Order) => {
       // New orders go to the end (oldest-first sort means newest is last).
-      this.orders.update(list => [...list, order]);
+      // Skip if the initial HTTP load already included it (the two race on page open).
+      this.orders.update(list =>
+        list.some(o => o.id === order.id) || this.recentlyCompleted.has(order.id)
+          ? list
+          : [...list, order]
+      );
     });
 
     this.hubConnection.on('orderCompleted', ({ orderId }: { orderId: string }) => {
       // Idempotent: if the KDS itself already removed the order on HTTP success,
       // this filter is a no-op.
-      this.orders.update(list => list.filter(o => o.id !== orderId));
+      this.markCompleted(orderId);
     });
 
     this.hubConnection.onreconnecting(() => {
@@ -80,6 +101,8 @@ export class KdsService {
 
     this.hubConnection.onreconnected(() => {
       this.connectionState.set('connected');
+      // Events broadcast while the socket was down are lost — resync.
+      this.loadOrders();
     });
 
     this.hubConnection.onclose(() => {
@@ -89,7 +112,12 @@ export class KdsService {
     // ── Start connection ─────────────────────────────────────────────────────
     this.connectionState.set('connecting');
     this.hubConnection.start()
-      .then(() => this.connectionState.set('connected'))
+      .then(() => {
+        this.connectionState.set('connected');
+        // Orders placed between the initial HTTP load and the socket opening
+        // were broadcast before we were listening — resync now that we are.
+        this.loadOrders();
+      })
       .catch((err) => {
         console.error('KdsService: SignalR connection failed', err);
         this.connectionState.set('error');
@@ -146,7 +174,9 @@ export class KdsService {
     this.http.patch(`/api/orders/${orderId}/complete`, {}).subscribe({
       next: () => {
         // Remove order immediately — don't wait for SignalR round-trip.
-        this.orders.update(list => list.filter(o => o.id !== orderId));
+        // (Also the path when another device completed it first — the API
+        // answers 200 with alreadyCompleted: true.)
+        this.markCompleted(orderId);
         this.completing.update(s => {
           const next = new Set(s);
           next.delete(orderId);
@@ -155,6 +185,8 @@ export class KdsService {
       },
       error: (err) => {
         console.error(`KdsService: failed to complete order ${orderId}`, err);
+        // 404: the order no longer exists at all — drop the stale card.
+        if (err?.status === 404) this.markCompleted(orderId);
         // Re-enable the button so the user can retry.
         this.completing.update(s => {
           const next = new Set(s);

@@ -651,6 +651,34 @@
   &:hover:not(:disabled) { background: #fecdd3; }
 }
 
+/* ── Guests tab ──────────────────────────────────────────────────────────── */
+
+.guest-intro {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.guest-list .option-row:first-child { border-top: none; }
+
+.guest-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.guest-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.375rem;
+}
+
+.guest-info .guest-meta { margin-bottom: 0; }
+
+.guest-edit { width: 100%; }
+
 /* ── Feedback states ─────────────────────────────────────────────────────── */
 
 .error-banner {

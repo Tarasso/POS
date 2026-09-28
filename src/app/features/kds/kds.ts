@@ -58,12 +58,29 @@ export class Kds implements OnInit, OnDestroy {
     this.kdsService.loadOrders();
     this.kdsService.connect();
     this.tickInterval = setInterval(() => this.tick.update(n => n + 1), 1_000);
+    this.doc.addEventListener('visibilitychange', this.onVisible);
   }
+
+  /**
+   * iOS suspends a backgrounded PWA and its WebSocket often dies without a
+   * close event, so SignalR events from other devices are missed. On return to
+   * the foreground, reload the open orders and restart a dead connection.
+   */
+  private readonly onVisible = (): void => {
+    if (this.doc.visibilityState !== 'visible') return;
+    const state = this.connectionState();
+    if (state === 'disconnected' || state === 'error') {
+      this.reconnect(); // loads orders once connected
+    } else {
+      this.kdsService.loadOrders();
+    }
+  };
 
   ngOnDestroy(): void {
     const link = this.doc.querySelector<HTMLLinkElement>('link[rel="manifest"]');
     if (link) link.href = '/manifest.webmanifest';
 
+    this.doc.removeEventListener('visibilitychange', this.onVisible);
     this.kdsService.disconnect();
     if (this.tickInterval) {
       clearInterval(this.tickInterval);

@@ -17,6 +17,7 @@ from collections import defaultdict
 
 import azure.functions as func
 
+from auth_helper import OWNER_ROLES, authorize
 from cosmos_helper import get_orders_container
 
 analytics_bp = func.Blueprint()
@@ -116,6 +117,9 @@ def analytics_summary(req: func.HttpRequest) -> func.HttpResponse:
     Aggregation is done in Python — simpler than Cosmos GROUP BY and more than
     fast enough for a low-volume personal POS.
     """
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     start_date = (req.params.get("startDate") or "").strip() or None
     end_date   = (req.params.get("endDate")   or "").strip() or None
     event_name = (req.params.get("eventName") or "").strip() or None
@@ -208,6 +212,9 @@ def analytics_orders(req: func.HttpRequest) -> func.HttpResponse:
     Return all completed orders sorted newest-first, for the history table.
     Accepts the same startDate / endDate / eventName filter params as /summary.
     """
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     start_date = (req.params.get("startDate") or "").strip() or None
     end_date   = (req.params.get("endDate")   or "").strip() or None
     event_name = (req.params.get("eventName") or "").strip() or None
@@ -229,6 +236,9 @@ def analytics_events(req: func.HttpRequest) -> func.HttpResponse:
     by the most recent order in each event.  Used to populate the event filter
     dropdown on the analytics page.
     """
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     container = get_orders_container()
     try:
         # Fetch only the fields we need to keep the payload small.

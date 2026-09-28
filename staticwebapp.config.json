@@ -6,30 +6,6 @@
       "/*.{ico,png,jpg,svg,js,css,webmanifest,json,txt}"
     ]
   },
-  "routes": [
-    {
-      "route": "/.auth/*",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/access-denied.html",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/*",
-      "allowedRoles": ["staff", "owner"]
-    },
-    {
-      "route": "/*",
-      "allowedRoles": ["staff", "owner"]
-    }
-  ],
-  "responseOverrides": {
-    "401": {
-      "redirect": "/access-denied.html",
-      "statusCode": 302
-    }
-  },
   "globalHeaders": {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "SAMEORIGIN",

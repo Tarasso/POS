@@ -1,7 +1,9 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
-import { CurrencyPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MenuService } from '../../core/services/menu.service';
+import { GuestService } from '../../core/services/guest.service';
+import { Guest } from '../../core/models/auth.models';
 import {
   Category,
   CategoryWithItems,
@@ -33,10 +35,14 @@ interface ModifierOptionForm {
   color: string;
 }
 
+interface GuestForm { name: string; pin: string; }
+
+type AdminTab = 'menu' | 'modifiers' | 'guests';
+
 @Component({
   selector: 'app-admin',
   standalone: true,
-  imports: [FormsModule, CurrencyPipe],
+  imports: [FormsModule, CurrencyPipe, DatePipe],
   templateUrl: './admin.html',
   styleUrl: './admin.scss',
 })
@@ -50,7 +56,19 @@ export class Admin implements OnInit {
   readonly saveError = signal<string | null>(null);
 
   // ── Tab navigation ─────────────────────────────────────────────────────────
-  readonly activeTab = signal<'menu' | 'modifiers'>('menu');
+  readonly activeTab = signal<AdminTab>('menu');
+
+  // ── Guest accounts ─────────────────────────────────────────────────────────
+  private guestService = inject(GuestService);
+  readonly guests            = this.guestService.guests;
+  readonly guestsLoading     = this.guestService.loading;
+  readonly guestsError       = this.guestService.error;
+  readonly guestLoginEnabled = this.guestService.guestLoginEnabled;
+  readonly showAddGuest      = signal(false);
+  readonly editingGuestId    = signal<string | null>(null);
+  readonly guestFormError    = signal<string | null>(null);
+  guestForm:     GuestForm = { name: '', pin: '' };
+  editGuestForm: GuestForm = { name: '', pin: '' };
 
   // ── Item expand / modifier highlight ──────────────────────────────────────
   readonly expandedItemId    = signal<string | null>(null);
@@ -496,9 +514,76 @@ export class Admin implements OnInit {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GUEST ACTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  openAddGuest(): void {
+    this.guestForm = { name: '', pin: '' };
+    this.guestFormError.set(null);
+    this.showAddGuest.set(true);
+  }
+  cancelAddGuest(): void { this.showAddGuest.set(false); }
+  saveNewGuest(): void {
+    const name = this.guestForm.name.trim();
+    const pin = this.guestForm.pin.trim();
+    if (!name) { this.guestFormError.set('Name is required.'); return; }
+    if (!/^\d{4}$/.test(pin)) { this.guestFormError.set('PIN must be exactly 4 digits.'); return; }
+    this.guestFormError.set(null);
+    this.saving.set(true);
+    this.guestService.create(name, pin).subscribe({
+      next: () => { this.showAddGuest.set(false); this.saving.set(false); },
+      error: (err) => { this.saving.set(false); this.guestFormError.set(err?.error?.error ?? 'Save failed. Please try again.'); },
+    });
+  }
+
+  startEditGuest(guest: Guest): void {
+    this.editGuestForm = { name: guest.name, pin: '' };
+    this.guestFormError.set(null);
+    this.editingGuestId.set(guest.id);
+  }
+  cancelEditGuest(): void { this.editingGuestId.set(null); }
+  saveEditGuest(): void {
+    const id = this.editingGuestId();
+    if (!id) return;
+    const name = this.editGuestForm.name.trim();
+    const pin = this.editGuestForm.pin.trim();
+    if (!name) { this.guestFormError.set('Name is required.'); return; }
+    if (pin && !/^\d{4}$/.test(pin)) { this.guestFormError.set('PIN must be exactly 4 digits.'); return; }
+    this.guestFormError.set(null);
+    this.saving.set(true);
+    this.guestService.update(id, { name, ...(pin ? { pin } : {}) }).subscribe({
+      next: () => { this.editingGuestId.set(null); this.saving.set(false); },
+      error: (err) => { this.saving.set(false); this.guestFormError.set(err?.error?.error ?? 'Save failed. Please try again.'); },
+    });
+  }
+
+  revokeGuest(guest: Guest): void {
+    if (!confirm(`Sign "${guest.name}" out on every device? They can sign back in with the same PIN.`)) return;
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.guestService.revoke(guest.id).subscribe({
+      next: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Sign-out failed. Please try again.'); },
+    });
+  }
+
+  deleteGuest(guest: Guest): void {
+    if (!confirm(`Delete guest "${guest.name}"? Any device they're signed in on loses access immediately.`)) return;
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.guestService.remove(guest.id).subscribe({
+      next: () => this.saving.set(false),
+      error: () => { this.saving.set(false); this.saveError.set('Delete failed. Please try again.'); },
+    });
+  }
+
   // ── Tab / expand / highlight helpers ──────────────────────────────────────
 
-  setTab(tab: 'menu' | 'modifiers'): void { this.activeTab.set(tab); }
+  setTab(tab: AdminTab): void {
+    this.activeTab.set(tab);
+    if (tab === 'guests') this.guestService.load();
+  }
 
   toggleItemExpand(itemId: string): void {
     this.expandedItemId.set(this.expandedItemId() === itemId ? null : itemId);

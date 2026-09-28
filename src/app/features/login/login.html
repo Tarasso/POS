@@ -1,0 +1,47 @@
+<div class="login-page">
+  <div class="login-card">
+    <div class="brand">POS</div>
+
+    <h1 class="title">Enter guest PIN</h1>
+
+    @for (k of [shakeKey()]; track k) {
+      <div class="dots" [class.shake]="k > 0" aria-live="polite"
+           [attr.aria-label]="digits().length + ' of 4 digits entered'">
+        @for (filled of dots(); track $index) {
+          <span class="dot" [class.filled]="filled"></span>
+        }
+      </div>
+    }
+
+    <p class="status" [class.status-error]="error()">
+      @if (submitting()) { Checking… }
+      @else if (error()) { {{ error() }} }
+      @else { &nbsp; }
+    </p>
+
+    <div class="keypad">
+      @for (key of keys; track $index) {
+        @if (key) {
+          <button type="button" class="key" [class.key-back]="key === '⌫'"
+                  [disabled]="submitting()" (click)="press(key)"
+                  [attr.aria-label]="key === '⌫' ? 'Delete' : key">
+            {{ key }}
+          </button>
+        } @else {
+          <span></span>
+        }
+      }
+    </div>
+
+    <div class="divider"><span>Owner?</span></div>
+
+    @if (uninvitedUser(); as user) {
+      <p class="uninvited">
+        Signed in as <strong>{{ user }}</strong>, but that account doesn’t have access.
+        <a [href]="switchAccountUrl">Use a different account</a>
+      </p>
+    }
+
+    <a class="ms-btn" [href]="microsoftLoginUrl">Sign in with Microsoft</a>
+  </div>
+</div>

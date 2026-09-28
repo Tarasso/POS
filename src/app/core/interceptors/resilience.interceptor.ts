@@ -1,8 +1,9 @@
 import { HttpInterceptorFn } from '@angular/common/http';
 import { DOCUMENT } from '@angular/common';
 import { inject } from '@angular/core';
-import { throwError, timer, from, NEVER } from 'rxjs';
+import { throwError, timer, NEVER } from 'rxjs';
 import { catchError, switchMap } from 'rxjs/operators';
+import { SESSION_CACHE_KEY } from '../services/auth.service';
 
 /**
  * Retry delays for Azure Functions cold-start (504).
@@ -11,36 +12,23 @@ import { catchError, switchMap } from 'rxjs/operators';
 const BACKOFF_DELAYS = [3_000, 8_000, 20_000];
 
 /**
- * Checks /.auth/me with native fetch (avoids HttpClient circular dependency).
- * Returns true if the user has a valid SWA session, false if the session expired.
- * Fails open (returns true) on network error so we don't redirect on offline blips.
- */
-async function checkAuth(): Promise<boolean> {
-  try {
-    const res = await fetch('/.auth/me', { credentials: 'same-origin' });
-    if (!res.ok) return true;
-    const json = await res.json();
-    return json?.clientPrincipal != null;
-  } catch {
-    return true;
-  }
-}
-
-/**
  * Resilience interceptor — applied to /api/* requests only.
  *
  * 504 (cold start): retries up to 3 times with increasing backoff so the
  * component stays in its Loading… state rather than immediately showing an error.
  *
- * Status 0 while online (SWA auth redirect → CORS block): calls /.auth/me to
- * distinguish an expired session from a transient network glitch.
- *   - Session expired → redirect to /.auth/login/aad (page navigates, no error shown).
- *   - Still authenticated → retry once after 1 s.
+ * 401 (not signed in / session revoked): the Functions enforce auth themselves
+ * and return a plain JSON 401. Drop the cached session and go to /login, which
+ * offers both the guest PIN pad and Microsoft sign-in. /api/auth/* calls are
+ * exempt — the login page handles their errors inline.
+ *
+ * Status 0 while online: transient network glitch — retry once after 1 s.
  */
 export const resilienceInterceptor: HttpInterceptorFn = (req, next) => {
   if (!req.url.startsWith('/api/')) return next(req);
 
   const doc = inject(DOCUMENT);
+  const isAuthCall = req.url.startsWith('/api/auth/');
   let attempt = 0;
 
   const attempt$ = (): ReturnType<typeof next> =>
@@ -54,35 +42,21 @@ export const resilienceInterceptor: HttpInterceptorFn = (req, next) => {
           return timer(delay).pipe(switchMap(() => attempt$()));
         }
 
-        // ── 401: raw SWA unauthorized — redirect immediately, no auth check ──
-        // (SWA normally converts 401→302→CORS-block→status 0, but belt-and-
-        //  suspenders for edge cases and the SW transition window after Fix 1)
-        if (status === 401) {
-          const returnUrl = encodeURIComponent(
-            doc.defaultView!.location.pathname + doc.defaultView!.location.search
-          );
-          doc.defaultView!.location.href = `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
+        // ── 401: signed out, guest deleted, or PIN changed → login screen ──
+        if (status === 401 && !isAuthCall) {
+          const loc = doc.defaultView!.location;
+          if (!loc.pathname.startsWith('/login')) {
+            try { localStorage.removeItem(SESSION_CACHE_KEY); } catch { /* ignore */ }
+            const returnUrl = encodeURIComponent(loc.pathname + loc.search);
+            loc.href = `/login?returnUrl=${returnUrl}`;
+          }
           return NEVER;
         }
 
-        // ── Status 0 while online: likely SWA auth redirect (CORS block) ───
-        if (status === 0 && navigator.onLine) {
-          return from(checkAuth()).pipe(
-            switchMap(authed => {
-              if (!authed) {
-                const returnUrl = encodeURIComponent(
-                  doc.defaultView!.location.pathname + doc.defaultView!.location.search
-                );
-                doc.defaultView!.location.href = `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
-                return NEVER;
-              }
-              if (attempt < 1) {
-                attempt++;
-                return timer(1_000).pipe(switchMap(() => attempt$()));
-              }
-              return throwError(() => err);
-            }),
-          );
+        // ── Status 0 while online: transient glitch — retry once ───────────
+        if (status === 0 && navigator.onLine && attempt < 1) {
+          attempt++;
+          return timer(1_000).pipe(switchMap(() => attempt$()));
         }
 
         return throwError(() => err);
