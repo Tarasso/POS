@@ -125,3 +125,13 @@ def broadcast_order_created(order_doc: dict) -> None:
 def broadcast_order_completed(order_id: str) -> None:
     """Broadcast an order-completed notification to all KDS subscribers."""
     _broadcast("orderCompleted", [{"orderId": order_id}])
+
+
+def broadcast_counter_updated(tally: dict) -> None:
+    """Ticket Counter: one tally changed — { eventId, station, itemId, count }."""
+    _broadcast("counterUpdated", [tally])
+
+
+def broadcast_counter_changed() -> None:
+    """Ticket Counter: the active event or its drink list changed — clients reload."""
+    _broadcast("counterChanged", [{}])

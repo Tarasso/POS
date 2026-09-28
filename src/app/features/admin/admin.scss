@@ -35,6 +35,12 @@
   border-radius: var(--r-md);
   padding: 0.3125rem;
   width: fit-content;
+  /* 4 tabs can outgrow a phone — scroll inside the pill bar, not the page */
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar { display: none; }
 }
 
 .tab-btn {
@@ -678,6 +684,28 @@
 .guest-info .guest-meta { margin-bottom: 0; }
 
 .guest-edit { width: 100%; }
+
+/* ── Counter tab ─────────────────────────────────────────────────────────── */
+
+.counter-item-list {
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0;
+}
+
+.counter-item-row {
+  display: flex;
+  gap: 0.375rem;
+  margin-bottom: 0.375rem;
+}
+
+.counter-active { border-color: var(--green); }
+
+.counter-chip {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
 
 /* ── Feedback states ─────────────────────────────────────────────────────── */
 

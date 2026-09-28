@@ -5,6 +5,9 @@ import { MenuService } from '../../core/services/menu.service';
 import { GuestService } from '../../core/services/guest.service';
 import { onPullRefresh } from '../../core/services/pull-refresh.service';
 import { Guest } from '../../core/models/auth.models';
+import { CounterService } from '../../core/services/counter.service';
+import { CounterEvent } from '../../core/models/counter.models';
+import { ActivatedRoute } from '@angular/router';
 import {
   Category,
   CategoryWithItems,
@@ -38,7 +41,14 @@ interface ModifierOptionForm {
 
 interface GuestForm { name: string; pin: string; }
 
-type AdminTab = 'menu' | 'modifiers' | 'guests';
+interface CounterForm {
+  name: string;
+  stationCount: number;
+  items: { id?: string; name: string }[];
+}
+
+type AdminTab = 'menu' | 'modifiers' | 'guests' | 'counter';
+const ADMIN_TABS: AdminTab[] = ['menu', 'modifiers', 'guests', 'counter'];
 
 @Component({
   selector: 'app-admin',
@@ -70,6 +80,17 @@ export class Admin implements OnInit {
   readonly guestFormError    = signal<string | null>(null);
   guestForm:     GuestForm = { name: '', pin: '' };
   editGuestForm: GuestForm = { name: '', pin: '' };
+
+  // ── Ticket Counter events ──────────────────────────────────────────────────
+  private counterService = inject(CounterService);
+  private route = inject(ActivatedRoute);
+  readonly counterEvents    = signal<CounterEvent[]>([]);
+  readonly counterLoading   = signal(false);
+  readonly counterError     = signal<string | null>(null);
+  /** null = form closed, 'new' = creating, otherwise the id being edited. */
+  readonly editingCounterId = signal<string | null>(null);
+  readonly counterFormError = signal<string | null>(null);
+  counterForm: CounterForm = this._blankCounterForm();
 
   // ── Item expand / modifier highlight ──────────────────────────────────────
   readonly expandedItemId    = signal<string | null>(null);
@@ -111,10 +132,16 @@ export class Admin implements OnInit {
     onPullRefresh(() => {
       this.menuService.loadMenu();
       if (this.activeTab() === 'guests') this.guestService.load();
+      if (this.activeTab() === 'counter') this.loadCounterEvents();
     });
   }
 
-  ngOnInit(): void { this.menuService.loadMenu(); }
+  ngOnInit(): void {
+    this.menuService.loadMenu();
+    // Deep link from the Counter screen: /admin?tab=counter
+    const tab = this.route.snapshot.queryParamMap.get('tab') as AdminTab | null;
+    if (tab && ADMIN_TABS.includes(tab)) this.setTab(tab);
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CATEGORY ACTIONS
@@ -591,7 +618,98 @@ export class Admin implements OnInit {
   setTab(tab: AdminTab): void {
     this.activeTab.set(tab);
     if (tab === 'guests') this.guestService.load();
+    if (tab === 'counter') this.loadCounterEvents();
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TICKET COUNTER ACTIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  loadCounterEvents(): void {
+    this.counterLoading.set(true);
+    this.counterService.listEvents().subscribe({
+      next: (res) => { this.counterEvents.set(res.events); this.counterError.set(null); this.counterLoading.set(false); },
+      error: () => { this.counterError.set('Failed to load counter events.'); this.counterLoading.set(false); },
+    });
+  }
+
+  openNewCounter(): void {
+    this.counterForm = this._blankCounterForm();
+    this.counterFormError.set(null);
+    this.editingCounterId.set('new');
+  }
+
+  startEditCounter(ev: CounterEvent): void {
+    this.counterForm = {
+      name: ev.name,
+      stationCount: ev.stationCount,
+      items: ev.items.map(i => ({ id: i.id, name: i.name })),
+    };
+    this.counterFormError.set(null);
+    this.editingCounterId.set(ev.id);
+  }
+
+  cancelCounterForm(): void { this.editingCounterId.set(null); }
+
+  addCounterItem(): void { this.counterForm.items.push({ name: '' }); }
+
+  removeCounterItem(index: number): void {
+    const item = this.counterForm.items[index];
+    if (item.id && !confirm(`Remove "${item.name}" from the counter? Counts already recorded for it stay in Analytics.`)) return;
+    this.counterForm.items.splice(index, 1);
+  }
+
+  moveCounterItem(index: number, dir: -1 | 1): void {
+    const items = this.counterForm.items;
+    const to = index + dir;
+    if (to < 0 || to >= items.length) return;
+    [items[index], items[to]] = [items[to], items[index]];
+  }
+
+  saveCounterForm(): void {
+    const id = this.editingCounterId();
+    if (!id) return;
+    const name = this.counterForm.name.trim();
+    const items = this.counterForm.items
+      .map(i => ({ ...i, name: i.name.trim() }))
+      .filter(i => i.name);
+    if (!name) { this.counterFormError.set('Event name is required.'); return; }
+    if (items.length === 0) { this.counterFormError.set('Add at least one drink.'); return; }
+
+    const payload = { name, stationCount: this.counterForm.stationCount, items };
+    this.counterFormError.set(null);
+    this.saving.set(true);
+    const req = id === 'new'
+      // A new event goes live straight away — that's almost always why you're making it.
+      ? this.counterService.createEvent({ ...payload, active: true })
+      : this.counterService.updateEvent(id, payload);
+    req.subscribe({
+      next: () => { this.saving.set(false); this.editingCounterId.set(null); this.loadCounterEvents(); },
+      error: (err) => { this.saving.set(false); this.counterFormError.set(err?.error?.error ?? 'Save failed. Please try again.'); },
+    });
+  }
+
+  toggleCounterActive(ev: CounterEvent): void {
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.counterService.updateEvent(ev.id, { active: !ev.active }).subscribe({
+      next: () => { this.saving.set(false); this.loadCounterEvents(); },
+      error: () => { this.saving.set(false); this.saveError.set('Update failed. Please try again.'); },
+    });
+  }
+
+  deleteCounter(ev: CounterEvent): void {
+    const counts = ev.totalCount ? ` and its ${ev.totalCount} recorded drinks` : '';
+    if (!confirm(`Delete "${ev.name}"${counts}? This can't be undone.`)) return;
+    this.saveError.set(null);
+    this.saving.set(true);
+    this.counterService.deleteEvent(ev.id).subscribe({
+      next: () => { this.saving.set(false); this.loadCounterEvents(); },
+      error: () => { this.saving.set(false); this.saveError.set('Delete failed. Please try again.'); },
+    });
+  }
+
+  trackByIndex(index: number): number { return index; }
 
   toggleItemExpand(itemId: string): void {
     this.expandedItemId.set(this.expandedItemId() === itemId ? null : itemId);
@@ -649,6 +767,9 @@ export class Admin implements OnInit {
 
   // ── Private blank-form factories ───────────────────────────────────────────
 
+  private _blankCounterForm(): CounterForm {
+    return { name: '', stationCount: 2, items: [{ name: '' }, { name: '' }, { name: '' }, { name: '' }] };
+  }
   private _blankCategoryForm(): CategoryForm { return { name: '', sortOrder: 0, useColor: false, color: '#3b82f6' }; }
   private _blankItemForm(catId: string): ItemForm { return { name: '', categoryId: catId, price: null, sortOrder: 0, useColor: false, color: '#3b82f6' }; }
   private _blankGroupForm(): ModifierGroupForm { return { name: '', minSelections: 0, maxUnlimited: false, maxSelections: 1, sortOrder: 0 }; }

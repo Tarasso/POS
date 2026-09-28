@@ -20,6 +20,12 @@ export const routes: Routes = [
       import('./features/kds/kds').then(m => m.Kds),
   },
   {
+    path: 'counter',
+    canActivate: [signedInGuard],
+    loadComponent: () =>
+      import('./features/counter/counter').then(m => m.Counter),
+  },
+  {
     path: 'admin',
     canActivate: [fullAccessGuard],
     loadComponent: () =>

@@ -425,6 +425,28 @@ $card-accents: #3b82f6, #16a34a, #8b5cf6;
 
 .error-msg { color: var(--red); }
 
+// ── Orders / Ticket Counter view switch ──────────────────────────────────────
+
+.view-toggle { margin-bottom: 1rem; }
+
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.data-table tfoot td {
+  border-top: 2px solid var(--border);
+  padding-top: 0.625rem;
+}
+
+.removed-tag {
+  margin-left: 0.375rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;

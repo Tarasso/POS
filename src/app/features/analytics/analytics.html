@@ -1,6 +1,85 @@
 <div class="analytics-page">
   <h1 class="page-title">Analytics</h1>
 
+  <div class="filter-mode-toggle view-toggle">
+    <button class="mode-btn" [class.active]="view() === 'orders'" (click)="setView('orders')">Orders</button>
+    <button class="mode-btn" [class.active]="view() === 'counter'" (click)="setView('counter')">Ticket Counter</button>
+  </div>
+
+  @if (view() === 'counter') {
+    <!-- ═══════════════════ TICKET COUNTER RESULTS ═══════════════════ -->
+    @if (counterEventsLoading() && counterEvents().length === 0) {
+      <p class="filter-hint">Loading counter events…</p>
+    } @else if (counterEvents().length === 0) {
+      <p class="filter-hint">No Ticket Counter events yet — create one in Admin → Counter.</p>
+    } @else {
+      <div class="event-list">
+        @for (ev of counterEvents(); track ev.id) {
+          <button class="event-chip" [class.active]="selectedCounterId() === ev.id" (click)="selectCounterEvent(ev.id)">
+            <span class="event-chip-name">{{ ev.name }}</span>
+            <span class="event-chip-count">{{ ev.totalCount ?? 0 }}</span>
+          </button>
+        }
+      </div>
+    }
+
+    @if (counterError()) {
+      <p class="state-msg error-msg">{{ counterError() }}</p>
+    }
+    @if (counterResultsLoading()) {
+      <p class="filter-hint">Loading results…</p>
+    }
+
+    @if (counterReport(); as r) {
+      <div class="summary-cards">
+        <div class="summary-card">
+          <div class="card-value">{{ r.total }}</div>
+          <div class="card-label">Drinks</div>
+        </div>
+        @for (s of r.stations; track s) {
+          <div class="summary-card">
+            <div class="card-value">{{ r.stationTotals[s - 1] }}</div>
+            <div class="card-label">Station {{ s }}</div>
+          </div>
+        }
+      </div>
+
+      <h2 class="section-title">{{ r.name }} — {{ r.createdAt | date:'MMM d, y' }}</h2>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Drink</th>
+              @for (s of r.stations; track s) { <th class="num">Station {{ s }}</th> }
+              <th class="num">Total</th>
+              <th class="num">Share</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of r.rows; track row.itemId) {
+              <tr>
+                <td>{{ row.name }}@if (row.removed) { <span class="removed-tag">removed</span> }</td>
+                @for (c of row.byStation; track $index) { <td class="num">{{ c }}</td> }
+                <td class="num"><b>{{ row.total }}</b></td>
+                <td class="num">{{ r.total ? (row.total / r.total * 100 | number:'1.0-0') : 0 }}%</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td><b>Total</b></td>
+              @for (t of r.stationTotals; track $index) { <td class="num"><b>{{ t }}</b></td> }
+              <td class="num"><b>{{ r.total }}</b></td>
+              <td class="num">100%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    }
+  }
+
+  @if (view() === 'orders') {
+
   <!-- ══════════════════════════════════════════════════════════════════════
        FILTER BAR
   ══════════════════════════════════════════════════════════════════════════ -->
@@ -176,4 +255,5 @@
     }
 
   }
+  } <!-- /view === 'orders' -->
 </div>

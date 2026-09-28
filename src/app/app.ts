@@ -29,6 +29,7 @@ const MIN_SPIN_MS = 600;
       <div class="app-nav-links">
         <a class="nav-link" routerLink="/order"     routerLinkActive="nav-link-active">Order</a>
         <a class="nav-link" routerLink="/kds"       routerLinkActive="nav-link-active">KDS</a>
+        <a class="nav-link" routerLink="/counter"   routerLinkActive="nav-link-active">Counter</a>
         @if (hasFullAccess()) {
           <a class="nav-link" routerLink="/admin"     routerLinkActive="nav-link-active">Admin</a>
           <a class="nav-link" routerLink="/analytics" routerLinkActive="nav-link-active">Analytics</a>
