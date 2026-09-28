@@ -1,6 +1,7 @@
 import { Component, DestroyRef, inject, signal, computed, OnDestroy } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from './core/services/auth.service';
+import { PullRefreshService } from './core/services/pull-refresh.service';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { fromEvent, merge } from 'rxjs';
 import { filter, map } from 'rxjs';
@@ -10,6 +11,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
 /** How often (ms) to check /api/auth/session for session expiry in the foreground. */
 const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
+/** Pull distance (px, after resistance) needed to trigger a refresh. */
+const PULL_TRIGGER_PX = 70;
+/** Where the indicator rests while the refresh runs. */
+const PULL_REST_PX = 56;
+/** Keep the spinner up at least this long so the refresh is visibly acknowledged. */
+const MIN_SPIN_MS = 600;
 
 @Component({
   selector: 'app-root',
@@ -26,7 +33,9 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
           <a class="nav-link" routerLink="/admin"     routerLinkActive="nav-link-active">Admin</a>
           <a class="nav-link" routerLink="/analytics" routerLinkActive="nav-link-active">Analytics</a>
         }
+      </div>
 
+      <div class="app-nav-right">
         <!--
           Reload button — right-aligned in the nav bar.
           · Normal:   muted ↻ icon, tap to manually check for updates
@@ -46,9 +55,32 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
           <span class="nav-reload-icon">@if (upToDate()) { ✓ } @else { ↻ }</span>
         </button>
 
-        <button class="nav-link-signout" (click)="signOut()">Sign out</button>
+        <!-- Greeting chip — tap for the account menu (sign out lives here) -->
+        <button class="user-chip" (click)="userMenuOpen.set(!userMenuOpen())"
+                [attr.aria-expanded]="userMenuOpen()" aria-label="Account menu">
+          <span class="user-avatar">{{ initial() }}</span>
+          <span class="user-greeting">Hi, {{ firstName() || 'there' }}</span>
+        </button>
       </div>
     </nav>
+
+    @if (userMenuOpen()) {
+      <div class="user-menu-backdrop" (click)="userMenuOpen.set(false)"></div>
+      <div class="user-menu" role="menu">
+        <div class="user-menu-name">{{ session()?.name }}</div>
+        <div class="user-menu-role">{{ roleLabel() }}</div>
+        <button class="user-menu-signout" role="menuitem" (click)="signOut()">Sign out</button>
+      </div>
+    }
+    }
+
+    <!-- Pull-to-refresh indicator — sits just below the nav bar -->
+    @if (pullDistance() > 0 || refreshing()) {
+      <div class="ptr" [style.transform]="'translate(-50%, ' + ptrOffset() + 'px)'"
+           [style.opacity]="refreshing() ? 1 : pullProgress()">
+        <span class="ptr-icon" [class.ptr-spin]="refreshing()"
+              [style.transform]="refreshing() ? null : 'rotate(' + pullProgress() * 270 + 'deg)'">↻</span>
+      </div>
     }
 
     @if (updateAvailable()) {
@@ -85,8 +117,9 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
       right: 0;
       height: var(--nav-h);
       padding-top: env(safe-area-inset-top, 0px);
-      padding-left: 1rem;
-      padding-right: 0.5rem;
+      /* Landscape iPhone: keep content clear of the notch/island side insets */
+      padding-left: max(1rem, env(safe-area-inset-left, 0px));
+      padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
       z-index: 50;
       background: #1e293b;
       display: flex;
@@ -118,11 +151,27 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
       }
     }
 
+    /* Links shrink first; if they still don't fit they scroll inside the bar
+       rather than widening the page (the cause of the sideways scroll). */
     .app-nav-links {
       display: flex;
       align-items: center;
       gap: 0.125rem;
-      flex: 1;
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+
+      &::-webkit-scrollbar { display: none; }
+    }
+
+    .app-nav-right {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      flex: 0 1 auto;
+      min-width: 0;
     }
 
     .nav-link {
@@ -148,9 +197,8 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
       font-weight: 600;
     }
 
-    /* Reload button — pushed to far-right by margin-left: auto */
+    /* Reload button — first item in the right-hand group */
     .nav-reload-btn {
-      margin-left: auto;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -200,24 +248,138 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
       user-select: none;
     }
 
-    .nav-link-signout {
-      color: #94a3b8;
-      background: none;
+    /* ── Greeting chip + account menu ────────────────────────────────────── */
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      min-width: 0;
+      height: 2.125rem;
+      padding: 0 0.625rem 0 0.25rem;
       border: none;
-      cursor: pointer;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
       font-family: inherit;
-      text-decoration: none;
       font-size: 0.8125rem;
       font-weight: 500;
-      padding: 0.375rem 0.625rem;
-      border-radius: 0.5rem;
-      transition: color 0.12s, background 0.12s;
-      white-space: nowrap;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
 
-      &:hover {
-        color: #e2e8f0;
-        background: rgba(255, 255, 255, 0.08);
+      &:active { background: rgba(255, 255, 255, 0.16); }
+    }
+
+    .user-avatar {
+      flex-shrink: 0;
+      display: grid;
+      place-items: center;
+      width: 1.625rem;
+      height: 1.625rem;
+      border-radius: 50%;
+      background: #3b82f6;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .user-greeting {
+      min-width: 0;
+      max-width: 7rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .user-menu-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+    }
+
+    .user-menu {
+      position: fixed;
+      top: calc(var(--nav-h) + 0.375rem);
+      right: max(0.5rem, env(safe-area-inset-right, 0px));
+      z-index: 61;
+      min-width: 12rem;
+      max-width: calc(100vw - 1rem);
+      padding: 0.875rem;
+      background: #fff;
+      border-radius: 0.75rem;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .user-menu-name {
+      font-weight: 700;
+      font-size: 0.9375rem;
+      color: var(--text-primary);
+      overflow-wrap: anywhere;
+    }
+
+    .user-menu-role {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 0.125rem 0 0.75rem;
+    }
+
+    .user-menu-signout {
+      width: 100%;
+      height: 2.5rem;
+      border: 1px solid #fca5a5;
+      border-radius: 0.5rem;
+      background: #fff;
+      color: var(--red);
+      font-family: inherit;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    /* ── Pull-to-refresh indicator ───────────────────────────────────────── */
+    .ptr {
+      position: fixed;
+      top: var(--nav-h);
+      left: 50%;
+      z-index: 45; /* below the nav, so it slides out from under it */
+      display: grid;
+      place-items: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      margin-top: -2.5rem;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: var(--shadow-md);
+      pointer-events: none;
+    }
+
+    .ptr-icon {
+      display: inline-block;
+      font-size: 1.25rem;
+      line-height: 1;
+      color: var(--blue);
+    }
+
+    .ptr-spin { animation: spin 0.7s linear infinite; }
+
+    /* ── Phones ──────────────────────────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .app-nav {
+        padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+        padding-right: max(0.375rem, env(safe-area-inset-right, 0px));
+        gap: 0.25rem;
       }
+
+      /* The wordmark is decorative — give its space to the links. */
+      .app-nav-brand { display: none; }
+
+      .nav-link {
+        padding: 0.375rem 0.5rem;
+        font-size: 0.78rem;
+      }
+
+      .nav-reload-btn { width: 1.875rem; }
+
+      .user-greeting { max-width: 4.75rem; }
     }
 
     /* ── Content wrapper ─────────────────────────────────────────────────── */
@@ -296,7 +458,34 @@ export class App implements OnDestroy {
 
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly pullRefresh = inject(PullRefreshService);
   readonly hasFullAccess = this.auth.hasFullAccess;
+
+  // ── Greeting / account menu ────────────────────────────────────────────────
+  readonly session = this.auth.session;
+  readonly firstName = this.auth.firstName;
+  readonly initial = computed(() => (this.firstName() || '?').charAt(0).toUpperCase());
+  readonly roleLabel = computed(() => {
+    switch (this.session()?.role) {
+      case 'owner': return 'Owner';
+      case 'staff': return 'Staff';
+      case 'guest': return 'Guest — Order & KDS';
+      default:      return '';
+    }
+  });
+  readonly userMenuOpen = signal(false);
+
+  // ── Pull-to-refresh ────────────────────────────────────────────────────────
+  // iOS's native pull-to-refresh (and rubber-band bounce) is disabled in
+  // styles.scss because it slid the page under the fixed nav. This replaces it
+  // with an indicator that appears *below* the nav and refreshes the current
+  // page's data in place (see PullRefreshService).
+  readonly pullDistance = signal(0);
+  readonly refreshing = signal(false);
+  readonly pullProgress = computed(() => Math.min(this.pullDistance() / PULL_TRIGGER_PX, 1));
+  /** How far the indicator has slid down out from under the nav. */
+  readonly ptrOffset = computed(() => (this.refreshing() ? PULL_REST_PX : this.pullDistance()));
+  private pullStartY: number | null = null;
   // Seeded from location (router.url is still "/" before the first navigation).
   private readonly currentUrl = signal(window.location.pathname);
   readonly onLoginPage = computed(() => this.currentUrl().startsWith('/login'));
@@ -328,6 +517,7 @@ export class App implements OnDestroy {
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed(destroyRef))
       .subscribe(e => {
         this.currentUrl.set(e.urlAfterRedirects);
+        this.userMenuOpen.set(false);
         if (e.urlAfterRedirects.startsWith('/login')) this.sessionExpired.set(false);
       });
 
@@ -368,6 +558,68 @@ export class App implements OnDestroy {
     };
     document.addEventListener('visibilitychange', this.visibilityHandler);
     this.visibilityHandler(); // also run once on cold launch — visibilitychange never fires then
+
+    // ── Pull-to-refresh gesture ─────────────────────────────────────────────
+    const passive = { passive: true };
+    fromEvent<TouchEvent>(document, 'touchstart', passive)
+      .pipe(takeUntilDestroyed(destroyRef)).subscribe(e => this.onPullStart(e));
+    fromEvent<TouchEvent>(document, 'touchmove', passive)
+      .pipe(takeUntilDestroyed(destroyRef)).subscribe(e => this.onPullMove(e));
+    merge(fromEvent(document, 'touchend', passive), fromEvent(document, 'touchcancel', passive))
+      .pipe(takeUntilDestroyed(destroyRef)).subscribe(() => this.onPullEnd());
+  }
+
+  private onPullStart(e: TouchEvent): void {
+    if (this.refreshing() || this.onLoginPage() || this.userMenuOpen()) return;
+    if (e.touches.length !== 1 || window.scrollY > 0) return;
+    if (this.startsInBlockedArea(e.target)) return;
+    this.pullStartY = e.touches[0].clientY;
+  }
+
+  private onPullMove(e: TouchEvent): void {
+    if (this.pullStartY === null) return;
+    const dy = e.touches[0].clientY - this.pullStartY;
+    if (dy < -10 || window.scrollY > 0) {
+      // Scrolling up/normally, not pulling — abandon the gesture.
+      this.pullStartY = null;
+      this.pullDistance.set(0);
+      return;
+    }
+    // Resistance: the indicator moves at half the finger's speed, capped.
+    this.pullDistance.set(Math.max(0, Math.min(dy * 0.5, 110)));
+  }
+
+  private onPullEnd(): void {
+    if (this.pullStartY === null) return;
+    this.pullStartY = null;
+    const triggered = this.pullDistance() >= PULL_TRIGGER_PX;
+    this.pullDistance.set(0);
+    if (triggered) void this.runPullRefresh();
+  }
+
+  private async runPullRefresh(): Promise<void> {
+    this.refreshing.set(true);
+    const started = Date.now();
+    if (this.swUpdate.isEnabled) this.swUpdate.checkForUpdate().catch(() => {});
+    try {
+      await this.pullRefresh.run();
+    } finally {
+      const remaining = MIN_SPIN_MS - (Date.now() - started);
+      if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+      this.refreshing.set(false);
+    }
+  }
+
+  /**
+   * Don't hijack drags that begin inside bottom sheets, side panels, overlays or
+   * the nav (anything fixed-position), or inside a box that's scrolled down.
+   */
+  private startsInBlockedArea(target: EventTarget | null): boolean {
+    for (let el = target as HTMLElement | null; el && el !== document.body; el = el.parentElement) {
+      if (el.scrollTop > 0) return true;
+      if (getComputedStyle(el).position === 'fixed') return true;
+    }
+    return false;
   }
 
   ngOnDestroy(): void {
@@ -380,6 +632,7 @@ export class App implements OnDestroy {
   }
 
   signOut(): void {
+    this.userMenuOpen.set(false);
     this.auth.signOut();
   }
 

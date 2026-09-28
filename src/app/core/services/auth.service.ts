@@ -18,6 +18,22 @@ export function readGuestToken(): string | null {
   try { return localStorage.getItem(GUEST_TOKEN_KEY); } catch { return null; }
 }
 
+/**
+ * The API only sees a Microsoft user's email (userDetails). The display name
+ * ("Kyle Rosko") is in the `name` claim that SWA's /.auth/me exposes.
+ */
+async function microsoftDisplayName(): Promise<string | null> {
+  try {
+    const res = await fetch('/.auth/me', { credentials: 'same-origin' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const claims: { typ: string; val: string }[] = json?.clientPrincipal?.claims ?? [];
+    return claims.find(c => c.typ === 'name')?.val?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Forget this device's sign-in (both the guest token and the cached session). */
 export function clearStoredAuth(): void {
   try {
@@ -53,6 +69,15 @@ export class AuthService {
   readonly session = signal<Session | null>(readCachedSession());
 
   readonly isAuthenticated = computed(() => this.session()?.authenticated === true);
+
+  /** Friendly first name for the nav greeting ("Hi, Kyle"). */
+  readonly firstName = computed(() => {
+    const name = (this.session()?.name ?? '').trim();
+    if (!name) return '';
+    // Microsoft fallback is an email — use the part before '@'.
+    const base = name.includes('@') ? name.split('@')[0] : name.split(/\s+/)[0];
+    return base.charAt(0).toUpperCase() + base.slice(1);
+  });
   readonly isGuest         = computed(() => this.session()?.role === 'guest');
   readonly hasFullAccess   = computed(() => {
     const role = this.session()?.role;
@@ -63,7 +88,13 @@ export class AuthService {
   refresh(): Promise<Session> {
     if (!this.inflight) {
       this.inflight = firstValueFrom(this.http.get<Session>('/api/auth/session'))
-        .then(s => { this.store(s); return s; })
+        .then(async s => {
+          if (s.authenticated && s.kind === 'microsoft') {
+            s = { ...s, name: (await microsoftDisplayName()) ?? s.name };
+          }
+          this.store(s);
+          return s;
+        })
         .finally(() => { this.inflight = null; });
     }
     return this.inflight;

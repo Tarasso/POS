@@ -3,6 +3,7 @@ import { CurrencyPipe, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MenuService } from '../../core/services/menu.service';
 import { GuestService } from '../../core/services/guest.service';
+import { onPullRefresh } from '../../core/services/pull-refresh.service';
 import { Guest } from '../../core/models/auth.models';
 import {
   Category,
@@ -106,6 +107,13 @@ export class Admin implements OnInit {
   editOptionForm: ModifierOptionForm  = this._blankOptionForm();
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
+  constructor() {
+    onPullRefresh(() => {
+      this.menuService.loadMenu();
+      if (this.activeTab() === 'guests') this.guestService.load();
+    });
+  }
+
   ngOnInit(): void { this.menuService.loadMenu(); }
 
   // ═══════════════════════════════════════════════════════════════════════════

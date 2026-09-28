@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal, computed } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AnalyticsService } from '../../core/services/analytics.service';
+import { onPullRefresh } from '../../core/services/pull-refresh.service';
 import { ModifierGroupStat } from '../../core/models/analytics.models';
 import { Order } from '../../core/models/order.models';
 
@@ -54,6 +55,11 @@ export class Analytics implements OnInit {
     if (e) return `Until ${e}`;
     return '';
   });
+
+  constructor() {
+    // Pull-to-refresh re-runs the current filter.
+    onPullRefresh(() => { this.svc.loadEvents(); this.svc.loadAll(); });
+  }
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
   ngOnInit(): void {
