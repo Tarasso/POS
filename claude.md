@@ -147,8 +147,7 @@ GET    /api/analytics/orders                    → historical orders
 POST   /api/negotiate                           → SignalR connection handshake
 
 GET    /api/auth/session                        → { authenticated, kind, role, name } (public, always 200)
-POST   /api/auth/guest-login                    → { pin } → sets guest cookie (public, throttled)
-POST   /api/auth/logout                         → clears guest cookie (public)
+POST   /api/auth/guest-login                    → { pin } → { ...session, guestToken } (public, throttled)
 GET    /api/guests                              → list guest accounts (owner/staff)
 POST   /api/guests                              → create { name, pin }
 PUT    /api/guests/{id}                         → update { name?, pin? } — new PIN signs guest out everywhere
@@ -410,8 +409,8 @@ $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\Stat
 ### Guest PIN Login
 
 - **Roles**: `owner`/`staff` (Microsoft, invited) = everything. `guest` (PIN) = Order + KDS only.
-- **`api/auth_helper.py`** — `authorize(req, OWNER_ROLES | ANY_ROLE)` at the top of every route. Microsoft users come from SWA's `x-ms-client-principal` header; guests from the `pos_guest` HttpOnly cookie (HS256 JWT, `Path=/api`, 400-day Max-Age, reissued weekly while used).
-- **`api/guest_routes.py`** — session/login/logout + guest CRUD. Guest docs live in the `menu` container, partition `guest` (`pinHash`/`pinSalt` PBKDF2, `tokenVersion`). Bumping `tokenVersion` (PIN change, "Sign out" in admin) invalidates all of that guest's cookies. PINs are unique across guests; login is PIN-only.
+- **`api/auth_helper.py`** — `authorize(req, OWNER_ROLES | ANY_ROLE)` at the top of every route. Microsoft users come from SWA's `x-ms-client-principal` header; guests from the `X-Guest-Token` request header (HS256 JWT, 400-day expiry, reissued weekly via `/api/auth/session` while used). The SPA keeps it in localStorage `pos_guest_token`; `guestTokenInterceptor` attaches it to `/api/*`, and `KdsService` adds it to SignalR's negotiate call via a custom `HttpClient` (same-origin only).
+- **`api/guest_routes.py`** — session/login + guest CRUD. Guest docs live in the `menu` container, partition `guest` (`pinHash`/`pinSalt` PBKDF2, `tokenVersion`). Bumping `tokenVersion` (PIN change, "Sign out" in admin) invalidates all of that guest's tokens. Guest sign-out is client-side (forget the token). PINs are unique across guests; login is PIN-only.
 - **Brute-force throttle**: global — 10 failed PINs per rolling 30 min locks guest login (429) until the oldest failure ages out. Stored in doc `guest_login_throttle` (partition `guest_throttle`). Microsoft sign-in unaffected.
 - **App setting `GUEST_TOKEN_SECRET`** (SWA app settings + `api/local.settings.json`) — long random string. Missing → guest login returns 503, admin Guests tab shows a warning. Rotating it signs every guest out.
 - **Frontend**: `AuthService` (session signal cached in localStorage `pos_session` for instant cold-start), `signedInGuard` / `fullAccessGuard`, `/login` page (PIN keypad + "Sign in with Microsoft"), admin **Guests** tab. Interceptor sends any non-`/api/auth/*` 401 to `/login?returnUrl=`.
@@ -419,16 +418,18 @@ $bin = "C:\Users\kylem\.swa\deploy\08e29138cd3dcda4ffda6d587aa580028110c1c7\Stat
 ### Guest Login Gotchas
 
 44. **Guest docs are cached per Functions worker for 60 s** (`auth_helper._GUEST_CACHE_SECONDS`). A revoke/delete takes effect immediately on the instance that handled it, within 60 s elsewhere.
-45. **iOS home-screen PWAs have their own cookie jar** — a guest who signs in via Safari and then taps "Add to Home Screen" must enter the PIN once more inside the installed app.
+45. **iOS home-screen PWAs have their own storage** — a guest who signs in via Safari and then taps "Add to Home Screen" must enter the PIN once more inside the installed app.
 46. **`x-ms-client-principal` is trusted because managed Functions are only reachable through SWA.** If the API is ever moved to a standalone ("bring your own") Function App, this must be revisited.
 47. **Local `func start` imports from `api\.venv` — keep it in sync with `requirements.txt`.** `auth_helper` imports PyJWT on every route, so a venv missing a package makes *every* route 404 ("Worker failed to index functions" / `No module named 'jwt'`). Fix: `api\.venv\Scripts\python.exe -m pip install -r api\requirements.txt`, then restart `func`.
 48. **`public/access-denied.html` and the `responseOverrides` 401 redirect were removed** — the CDN no longer returns 401, and `/login` covers the "signed in with Microsoft but not invited" case.
+49. **Azure SWA strips `Set-Cookie` from managed-Function responses** (the SWA CLI does not, so cookies work locally). The first guest-login release used an HttpOnly cookie: login succeeded in production but the browser never received the cookie, so the next call 401'd and bounced back to `/login`. Guest auth now uses the `X-Guest-Token` header. Never rely on Functions setting cookies in this app.
+50. **Guest tokens in a Safari *tab* (not installed) can be wiped by ITP** after ~7 days without visiting the site. Installed home-screen PWAs are exempt. Guests who use the site regularly should "Add to Home Screen".
 
 ### SWA Built-in Auth (Entra ID / Microsoft)
 
 **How it works:**
 - `/.auth/login/aad` → Microsoft sign-in; SWA sets a secure httpOnly cookie and adds invitation roles to `x-ms-client-principal`
-- Sign out (nav bar) → `/.auth/logout?post_logout_redirect_uri=/login` for Microsoft users, `POST /api/auth/logout` for guests
+- Sign out (nav bar) → `/.auth/logout?post_logout_redirect_uri=/login` for Microsoft users; guests just clear the stored token
 
 **Role management (Azure Portal):**
 1. Azure Portal → `swa-pos-kylem` → Settings → **Authentication** — Entra ID and GitHub providers are pre-enabled in Simple mode

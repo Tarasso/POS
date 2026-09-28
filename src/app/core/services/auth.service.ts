@@ -6,6 +6,26 @@ import { Session } from '../models/auth.models';
 /** localStorage key for the last known session — lets the PWA open instantly on cold start. */
 export const SESSION_CACHE_KEY = 'pos_session';
 
+/**
+ * localStorage key for the guest JWT. Sent as the X-Guest-Token header on every
+ * /api call (see guestTokenInterceptor + KdsService). A cookie can't be used:
+ * Azure Static Web Apps strips Set-Cookie from managed-Function responses.
+ */
+export const GUEST_TOKEN_KEY = 'pos_guest_token';
+export const GUEST_TOKEN_HEADER = 'X-Guest-Token';
+
+export function readGuestToken(): string | null {
+  try { return localStorage.getItem(GUEST_TOKEN_KEY); } catch { return null; }
+}
+
+/** Forget this device's sign-in (both the guest token and the cached session). */
+export function clearStoredAuth(): void {
+  try {
+    localStorage.removeItem(GUEST_TOKEN_KEY);
+    localStorage.removeItem(SESSION_CACHE_KEY);
+  } catch { /* storage unavailable */ }
+}
+
 function readCachedSession(): Session | null {
   try {
     const raw = localStorage.getItem(SESSION_CACHE_KEY);
@@ -20,7 +40,7 @@ function readCachedSession(): Session | null {
  *
  * Two sign-in paths share one session shape:
  *   · Microsoft (SWA built-in auth, owner/staff) — full access
- *   · Guest PIN (HttpOnly cookie set by /api/auth/guest-login) — Order + KDS only
+ *   · Guest PIN (token from /api/auth/guest-login, kept in localStorage) — Order + KDS only
  *
  * The API is the real gatekeeper; this service only drives routing and nav.
  */
@@ -60,21 +80,26 @@ export class AuthService {
     return `/.auth/login/aad?post_login_redirect_uri=${encodeURIComponent(returnUrl)}`;
   }
 
-  async signOut(): Promise<void> {
+  signOut(): void {
     const kind = this.session()?.kind;
-    this.store(null);
-    // Always clear the guest cookie — harmless if there isn't one.
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {});
+    this.session.set(null);
+    clearStoredAuth();
     window.location.href = kind === 'microsoft'
       ? '/.auth/logout?post_logout_redirect_uri=/login'
       : '/login';
   }
 
   private store(s: Session | null): void {
-    this.session.set(s);
+    const { guestToken, ...session } = s ?? {} as Session;
+    this.session.set(s ? session : null);
     try {
-      if (s?.authenticated) localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(s));
-      else localStorage.removeItem(SESSION_CACHE_KEY);
+      if (guestToken) localStorage.setItem(GUEST_TOKEN_KEY, guestToken);
+      if (s?.authenticated) {
+        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(session));
+      } else {
+        // Not signed in — any stored guest token is dead (revoked, deleted, or PIN changed).
+        clearStoredAuth();
+      }
     } catch { /* storage unavailable — session just won't be cached */ }
   }
 }

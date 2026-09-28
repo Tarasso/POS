@@ -2,8 +2,27 @@ import { Injectable, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import * as signalR from '@microsoft/signalr';
 import { Order } from '../models/order.models';
+import { GUEST_TOKEN_HEADER, readGuestToken } from './auth.service';
 
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+
+/**
+ * Adds the guest token to same-origin requests only (POST /api/negotiate).
+ * The follow-up requests to the Azure SignalR endpoint are cross-origin, and an
+ * extra custom header there would trigger a CORS preflight the service may reject.
+ */
+class GuestTokenHttpClient extends signalR.DefaultHttpClient {
+  constructor() { super(signalR.NullLogger.instance); }
+
+  override send(request: signalR.HttpRequest): Promise<signalR.HttpResponse> {
+    const token = readGuestToken();
+    const sameOrigin = new URL(request.url ?? '', window.location.origin).origin === window.location.origin;
+    if (token && sameOrigin) {
+      request.headers = { ...request.headers, [GUEST_TOKEN_HEADER]: token };
+    }
+    return super.send(request);
+  }
+}
 
 @Injectable({ providedIn: 'root' })
 export class KdsService {
@@ -72,8 +91,10 @@ export class KdsService {
   connect(): void {
     if (this.hubConnection) return; // already connected or connecting
 
+    // SignalR's negotiate call uses its own HTTP client, not Angular's, so the
+    // guest token interceptor doesn't apply — add the header ourselves.
     this.hubConnection = new signalR.HubConnectionBuilder()
-      .withUrl('/api')
+      .withUrl('/api', { httpClient: new GuestTokenHttpClient() })
       .withAutomaticReconnect()
       .configureLogging(signalR.LogLevel.Warning)
       .build();

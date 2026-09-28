@@ -2,9 +2,11 @@
 guest_routes.py — Session + guest (PIN) sign-in endpoints, and guest management.
 
 Session endpoints (anonymous — they are how you *become* authenticated):
-  GET  /api/auth/session       → who am I? { authenticated, kind, role, name }
-  POST /api/auth/guest-login   → { pin } → sets the guest cookie
-  POST /api/auth/logout        → clears the guest cookie
+  GET  /api/auth/session       → who am I? { authenticated, kind, role, name, guestToken? }
+  POST /api/auth/guest-login   → { pin } → { ...session, guestToken }
+
+The SPA stores guestToken and sends it as the X-Guest-Token header. Signing out
+is client-side (forget the token); server-side revocation bumps tokenVersion.
 
 Guest management (owner/staff only):
   GET    /api/guests                → list guests (never returns PIN hashes)
@@ -40,7 +42,6 @@ from auth_helper import (
     forget_guest,
     get_guest_secret,
     get_principal,
-    guest_cookie_header,
     hash_pin,
     is_valid_pin,
     issue_guest_token,
@@ -62,14 +63,11 @@ _FAILURE_WINDOW_SECONDS = 30 * 60
 
 # ── Private helpers ────────────────────────────────────────────────────────────
 
-def _json_response(
-    body: dict | list, status_code: int = 200, headers: dict[str, str] | None = None
-) -> func.HttpResponse:
+def _json_response(body: dict | list, status_code: int = 200) -> func.HttpResponse:
     return func.HttpResponse(
         json.dumps(body),
         status_code=status_code,
         mimetype="application/json",
-        headers=headers,
     )
 
 
@@ -144,13 +142,13 @@ def auth_session(req: func.HttpRequest) -> func.HttpResponse:
             "microsoftUser": (ms or {}).get("userDetails") if ms else None,
         })
 
-    headers = None
+    body = _session_body(principal)
     if token_needs_refresh(principal):
-        # Sliding expiry: an active guest's cookie never runs out.
+        # Sliding expiry: an active guest's token never runs out.
         guest = load_guest(principal.user_id)
         if guest:
-            headers = {"Set-Cookie": guest_cookie_header(req, issue_guest_token(guest))}
-    return _json_response(_session_body(principal), headers=headers)
+            body["guestToken"] = issue_guest_token(guest)
+    return _json_response(body)
 
 
 # ── POST /api/auth/guest-login ─────────────────────────────────────────────────
@@ -199,18 +197,7 @@ def guest_login(req: func.HttpRequest) -> func.HttpResponse:
 
     logger.info("Guest %s signed in", match["id"])
     principal = Principal(kind="guest", role="guest", name=match.get("name", "Guest"), user_id=match["id"])
-    return _json_response(
-        _session_body(principal),
-        headers={"Set-Cookie": guest_cookie_header(req, token)},
-    )
-
-
-# ── POST /api/auth/logout ──────────────────────────────────────────────────────
-
-@guest_bp.route(route="auth/logout", methods=["POST"])
-def auth_logout(req: func.HttpRequest) -> func.HttpResponse:
-    """Clear the guest cookie on this device. (Microsoft sign-out is /.auth/logout.)"""
-    return _json_response({"ok": True}, headers={"Set-Cookie": guest_cookie_header(req, None)})
+    return _json_response({**_session_body(principal), "guestToken": token})
 
 
 # ── GET /api/guests ────────────────────────────────────────────────────────────
