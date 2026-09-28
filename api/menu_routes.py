@@ -28,6 +28,7 @@ from uuid import uuid4
 import azure.functions as func
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 
+from auth_helper import ANY_ROLE, OWNER_ROLES, authorize
 from cosmos_helper import get_menu_container
 
 menu_bp = func.Blueprint()
@@ -70,6 +71,9 @@ def _get_item(item_id: str, partition_key: str) -> dict | None:
 @menu_bp.route(route="menu", methods=["GET"])
 def get_menu(req: func.HttpRequest) -> func.HttpResponse:
     """Return the full menu tree (categories + items) plus all modifier groups with options."""
+    _, denied = authorize(req, ANY_ROLE)
+    if denied:
+        return denied
     container = get_menu_container()
 
     # ── Categories + items ────────────────────────────────────────────────────
@@ -113,6 +117,9 @@ def get_menu(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/categories", methods=["POST"])
 def create_category(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     body, err = _parse_body(req)
     if err:
         return err
@@ -138,6 +145,9 @@ def create_category(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/categories/{id}", methods=["PUT"])
 def update_category(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     cat_id: str = req.route_params.get("id", "")
     existing = _get_item(cat_id, "category")
     if existing is None:
@@ -170,6 +180,9 @@ def update_category(req: func.HttpRequest) -> func.HttpResponse:
 @menu_bp.route(route="menu/categories/{id}", methods=["DELETE"])
 def delete_category(req: func.HttpRequest) -> func.HttpResponse:
     """Delete a category and all items belonging to it."""
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     cat_id: str = req.route_params.get("id", "")
     if not _get_item(cat_id, "category"):
         return _error(f"Category '{cat_id}' not found.", 404)
@@ -195,6 +208,9 @@ def delete_category(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/modifier-groups", methods=["POST"])
 def create_modifier_group(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     body, err = _parse_body(req)
     if err:
         return err
@@ -227,6 +243,9 @@ def assign_modifier_group_items(req: func.HttpRequest) -> func.HttpResponse:
     """Bulk-assign or unassign menu items to/from a modifier group.
     Body: { "add": ["item_abc", ...], "remove": ["item_def", ...] }
     """
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     group_id: str = req.route_params.get("id", "")
     if not _get_item(group_id, "modifier_group"):
         return _error(f"Modifier group '{group_id}' not found.", 404)
@@ -265,6 +284,9 @@ def assign_modifier_group_items(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/modifier-groups/{id}", methods=["PUT"])
 def update_modifier_group(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     group_id: str = req.route_params.get("id", "")
     existing = _get_item(group_id, "modifier_group")
     if existing is None:
@@ -298,6 +320,9 @@ def update_modifier_group(req: func.HttpRequest) -> func.HttpResponse:
 def delete_modifier_group(req: func.HttpRequest) -> func.HttpResponse:
     """Delete a modifier group and all its options. Also removes the group id
     from any items that reference it."""
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     group_id: str = req.route_params.get("id", "")
     if not _get_item(group_id, "modifier_group"):
         return _error(f"Modifier group '{group_id}' not found.", 404)
@@ -334,6 +359,9 @@ def delete_modifier_group(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/modifier-options", methods=["POST"])
 def create_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     body, err = _parse_body(req)
     if err:
         return err
@@ -367,6 +395,9 @@ def create_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/modifier-options/{id}", methods=["PUT"])
 def update_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     opt_id: str = req.route_params.get("id", "")
     existing = _get_item(opt_id, "modifier_option")
     if existing is None:
@@ -400,6 +431,9 @@ def update_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/modifier-options/{id}", methods=["DELETE"])
 def delete_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     opt_id: str = req.route_params.get("id", "")
     if not _get_item(opt_id, "modifier_option"):
         return _error(f"Modifier option '{opt_id}' not found.", 404)
@@ -413,6 +447,9 @@ def delete_modifier_option(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/items", methods=["POST"])
 def create_item(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     body, err = _parse_body(req)
     if err:
         return err
@@ -450,6 +487,9 @@ def create_item(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/items/{id}/soldout", methods=["PATCH"])
 def toggle_soldout(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     item_id: str = req.route_params.get("id", "")
     existing = _get_item(item_id, "item")
     if existing is None:
@@ -473,6 +513,9 @@ def toggle_soldout(req: func.HttpRequest) -> func.HttpResponse:
 @menu_bp.route(route="menu/items/{id}", methods=["DELETE"])
 def delete_item(req: func.HttpRequest) -> func.HttpResponse:
     """Delete a single menu item."""
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     item_id: str = req.route_params.get("id", "")
     if not _get_item(item_id, "item"):
         return _error(f"Item '{item_id}' not found.", 404)
@@ -486,6 +529,9 @@ def delete_item(req: func.HttpRequest) -> func.HttpResponse:
 
 @menu_bp.route(route="menu/items/{id}", methods=["PUT"])
 def update_item(req: func.HttpRequest) -> func.HttpResponse:
+    _, denied = authorize(req, OWNER_ROLES)
+    if denied:
+        return denied
     item_id: str = req.route_params.get("id", "")
     existing = _get_item(item_id, "item")
     if existing is None:

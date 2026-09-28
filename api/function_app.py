@@ -2,14 +2,19 @@ import json
 import azure.functions as func
 
 from analytics_routes import analytics_bp
+from auth_helper import ANY_ROLE, authorize
+from guest_routes import guest_bp
 from menu_routes import menu_bp
 from order_routes import order_bp
 from signalr_helper import get_client_connection_info
 
+# AuthLevel.ANONYMOUS: SWA serves the site to anyone (so the PIN screen can load);
+# each route enforces roles itself via auth_helper.authorize().
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 app.register_blueprint(menu_bp)
 app.register_blueprint(order_bp)
 app.register_blueprint(analytics_bp)
+app.register_blueprint(guest_bp)
 
 
 @app.route(route="health", methods=["GET"])
@@ -31,6 +36,9 @@ def health(req: func.HttpRequest) -> func.HttpResponse:
 @app.route(route="negotiate", methods=["POST"])
 def negotiate(req: func.HttpRequest) -> func.HttpResponse:
     """Return Azure SignalR client connection info for the KDS hub."""
+    _, denied = authorize(req, ANY_ROLE)
+    if denied:
+        return denied
     try:
         info = get_client_connection_info()
         return func.HttpResponse(

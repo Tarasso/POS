@@ -1,5 +1,6 @@
 import { Component, DestroyRef, inject, signal, computed, OnDestroy } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { AuthService } from './core/services/auth.service';
 import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
 import { fromEvent, merge } from 'rxjs';
 import { filter, map } from 'rxjs';
@@ -7,7 +8,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 /** How often (ms) to silently check for a new SW version in the foreground. */
 const UPDATE_POLL_MS = 5 * 60 * 1_000; // 5 minutes
-/** How often (ms) to check /.auth/me for session expiry in the foreground. */
+/** How often (ms) to check /api/auth/session for session expiry in the foreground. */
 const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
 
 @Component({
@@ -15,13 +16,16 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
   standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
+    @if (!onLoginPage()) {
     <nav class="app-nav">
       <span class="app-nav-brand">POS</span>
       <div class="app-nav-links">
         <a class="nav-link" routerLink="/order"     routerLinkActive="nav-link-active">Order</a>
         <a class="nav-link" routerLink="/kds"       routerLinkActive="nav-link-active">KDS</a>
-        <a class="nav-link" routerLink="/admin"     routerLinkActive="nav-link-active">Admin</a>
-        <a class="nav-link" routerLink="/analytics" routerLinkActive="nav-link-active">Analytics</a>
+        @if (hasFullAccess()) {
+          <a class="nav-link" routerLink="/admin"     routerLinkActive="nav-link-active">Admin</a>
+          <a class="nav-link" routerLink="/analytics" routerLinkActive="nav-link-active">Analytics</a>
+        }
 
         <!--
           Reload button — right-aligned in the nav bar.
@@ -42,9 +46,10 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
           <span class="nav-reload-icon">@if (upToDate()) { ✓ } @else { ↻ }</span>
         </button>
 
-        <a class="nav-link nav-link-signout" href="/.auth/logout">Sign out</a>
+        <button class="nav-link-signout" (click)="signOut()">Sign out</button>
       </div>
     </nav>
+    }
 
     @if (updateAvailable()) {
       <div class="update-banner" (click)="applyUpdate()">
@@ -63,7 +68,7 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
       </div>
     }
 
-    <div class="app-content">
+    <div class="app-content" [class.app-content-bare]="onLoginPage()">
       <router-outlet />
     </div>
   `,
@@ -197,6 +202,10 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
 
     .nav-link-signout {
       color: #94a3b8;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-family: inherit;
       text-decoration: none;
       font-size: 0.8125rem;
       font-weight: 500;
@@ -214,6 +223,11 @@ const SESSION_POLL_MS = 10 * 60 * 1_000; // 10 minutes
     /* ── Content wrapper ─────────────────────────────────────────────────── */
     .app-content {
       padding-top: var(--nav-clearance);
+    }
+
+    /* Login screen has no nav bar */
+    .app-content-bare {
+      padding-top: 0;
     }
 
     /* ── System banners ──────────────────────────────────────────────────── */
@@ -272,12 +286,20 @@ export class App implements OnDestroy {
   readonly checking = signal(false);
   /** Briefly true after a manual check finds no update. Auto-clears after 2 s. */
   readonly upToDate = signal(false);
-  /** True when the session poll detects the SWA session has expired mid-session. */
+  /** True when the session poll detects the session has expired mid-session. */
   readonly sessionExpired = signal(false);
   readonly sessionExpiredLoginUrl = computed(() => {
+    this.currentUrl(); // recompute on navigation
     const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-    return `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
+    return `/login?returnUrl=${returnUrl}`;
   });
+
+  private readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  readonly hasFullAccess = this.auth.hasFullAccess;
+  // Seeded from location (router.url is still "/" before the first navigation).
+  private readonly currentUrl = signal(window.location.pathname);
+  readonly onLoginPage = computed(() => this.currentUrl().startsWith('/login'));
 
   private readonly swUpdate = inject(SwUpdate);
   private pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -302,18 +324,24 @@ export class App implements OnDestroy {
       }, UPDATE_POLL_MS);
     }
 
+    this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed(destroyRef))
+      .subscribe(e => {
+        this.currentUrl.set(e.urlAfterRedirects);
+        if (e.urlAfterRedirects.startsWith('/login')) this.sessionExpired.set(false);
+      });
+
     // ── Proactive session expiry detection ─────────────────────────────────
     // The visibilitychange handler catches foreground→background→foreground
     // transitions. This poll handles session expiry while the app stays
     // continuously in the foreground (e.g., KDS left open overnight).
+    // Microsoft sessions expire; guest cookies only end on sign-out or revoke.
     this.sessionPollTimer = setInterval(async () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || this.onLoginPage()) return;
       try {
-        const res = await fetch('/.auth/me', { credentials: 'same-origin' });
-        if (!res.ok) return;
-        const json: { clientPrincipal: unknown } = await res.json();
-        if (json?.clientPrincipal == null) this.sessionExpired.set(true);
-      } catch { /* offline — ignore */ }
+        const session = await this.auth.refresh();
+        this.sessionExpired.set(!session.authenticated);
+      } catch { /* offline / cold start — ignore */ }
     }, SESSION_POLL_MS);
 
     // ── Offline / online detection ──────────────────────────────────────────
@@ -323,25 +351,20 @@ export class App implements OnDestroy {
     ).pipe(takeUntilDestroyed(destroyRef))
       .subscribe(offline => this.isOffline.set(offline));
 
-    // ── Visibility: auth check + pre-warm on foreground ─────────────────────
-    // When the PWA comes back to the foreground after hours/days:
-    // 1. Check /.auth/me — redirect to login if the SWA session expired.
-    // 2. Fire GET /api/health to pre-warm the Azure Function cold start
-    //    so it's ready by the time the user interacts with the UI.
+    // ── Visibility: session check + pre-warm on foreground ──────────────────
+    // When the PWA comes back to the foreground after hours/days, ask the API
+    // who we are. That one call both verifies the (possibly cached) session —
+    // bouncing to /login if it's gone — and pre-warms the Azure Function cold
+    // start so it's ready by the time the user interacts with the UI.
     this.visibilityHandler = async () => {
-      if (document.visibilityState !== 'visible') return;
+      if (document.visibilityState !== 'visible' || this.onLoginPage()) return;
       try {
-        const res = await fetch('/.auth/me', { credentials: 'same-origin' });
-        if (res.ok) {
-          const json: { clientPrincipal: unknown } = await res.json();
-          if (json?.clientPrincipal == null) {
-            const returnUrl = encodeURIComponent(window.location.pathname + window.location.search);
-            window.location.href = `/.auth/login/aad?post_login_redirect_uri=${returnUrl}`;
-            return;
-          }
+        const session = await this.auth.refresh();
+        if (!session.authenticated && !this.onLoginPage()) {
+          const returnUrl = window.location.pathname + window.location.search;
+          this.router.navigate(['/login'], { queryParams: { returnUrl } });
         }
-      } catch { /* offline — interceptor will handle any API errors */ }
-      fetch('/api/health', { credentials: 'same-origin' }).catch(() => {});
+      } catch { /* offline / still cold — the interceptor handles API errors */ }
     };
     document.addEventListener('visibilitychange', this.visibilityHandler);
     this.visibilityHandler(); // also run once on cold launch — visibilitychange never fires then
@@ -354,6 +377,10 @@ export class App implements OnDestroy {
     if (this.visibilityHandler) {
       document.removeEventListener('visibilitychange', this.visibilityHandler);
     }
+  }
+
+  signOut(): void {
+    this.auth.signOut();
   }
 
   applyUpdate(): void {

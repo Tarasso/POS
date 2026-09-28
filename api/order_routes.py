@@ -15,8 +15,9 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import azure.functions as func
-from azure.cosmos.exceptions import CosmosResourceNotFoundError
+from azure.cosmos.exceptions import CosmosResourceExistsError, CosmosResourceNotFoundError
 
+from auth_helper import ANY_ROLE, authorize
 from cosmos_helper import get_orders_container
 from signalr_helper import broadcast_order_completed, broadcast_order_created
 
@@ -49,11 +50,25 @@ def _parse_body(req: func.HttpRequest) -> tuple[dict | None, func.HttpResponse |
         return None, _error("Invalid JSON body.", 400)
 
 
+def _is_completed(container, order_id: str) -> bool:
+    try:
+        container.read_item(item=order_id, partition_key="completed")
+        return True
+    except CosmosResourceNotFoundError:
+        return False
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to check completed partition for %s", order_id)
+        return False
+
+
 # ── GET /api/orders ────────────────────────────────────────────────────────────
 
 @order_bp.route(route="orders", methods=["GET"])
 def list_orders(req: func.HttpRequest) -> func.HttpResponse:
     """Return all orders for a given status partition."""
+    _, denied = authorize(req, ANY_ROLE)
+    if denied:
+        return denied
     status: str = (req.params.get("status") or "").strip()
     if not status:
         return _error("Query param 'status' is required (e.g. ?status=open).", 400)
@@ -87,6 +102,9 @@ def list_orders(req: func.HttpRequest) -> func.HttpResponse:
 @order_bp.route(route="orders", methods=["POST"])
 def create_order(req: func.HttpRequest) -> func.HttpResponse:
     """Create a new order document in the 'orders' container."""
+    _, denied = authorize(req, ANY_ROLE)
+    if denied:
+        return denied
     body, err = _parse_body(req)
     if err:
         return err
@@ -186,6 +204,9 @@ def complete_order(req: func.HttpRequest) -> func.HttpResponse:
     that's an acceptable edge case — log it and return 200 rather than
     attempting a rollback.
     """
+    _, denied = authorize(req, ANY_ROLE)
+    if denied:
+        return denied
     order_id: str = req.route_params.get("id", "").strip()
     if not order_id:
         return _error("Order ID is required.", 400)
@@ -196,7 +217,10 @@ def complete_order(req: func.HttpRequest) -> func.HttpResponse:
     try:
         existing = container.read_item(item=order_id, partition_key="open")
     except CosmosResourceNotFoundError:
-        return _error("Order not found or already completed.", 404)
+        # Another device may have completed it a moment ago — that's success, not an error.
+        if _is_completed(container, order_id):
+            return _json_response({"orderId": order_id, "alreadyCompleted": True}, 200)
+        return _error("Order not found.", 404)
     except Exception:
         logger.exception("Failed to read order %s", order_id)
         return _error("Failed to retrieve order.", 500)
@@ -209,8 +233,13 @@ def complete_order(req: func.HttpRequest) -> func.HttpResponse:
     }
 
     # ── 3. Insert into 'completed' partition ──────────────────────────────────
+    # Two devices completing the same order at the same instant both pass step 1;
+    # the loser's insert conflicts (409). Treat that as success and still make
+    # sure the open copy is gone.
     try:
         container.create_item(body=completed_doc)
+    except CosmosResourceExistsError:
+        logger.info("Order %s was completed concurrently by another device", order_id)
     except Exception:
         logger.exception("Failed to insert completed order %s", order_id)
         return _error("Failed to complete order.", 500)
@@ -218,6 +247,8 @@ def complete_order(req: func.HttpRequest) -> func.HttpResponse:
     # ── 4. Delete from 'open' partition ───────────────────────────────────────
     try:
         container.delete_item(item=order_id, partition_key="open")
+    except CosmosResourceNotFoundError:
+        pass  # the concurrent completer already deleted it
     except Exception:
         # Non-fatal: the order was already written to 'completed'. Log and move on.
         logger.exception(

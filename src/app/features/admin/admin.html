@@ -11,6 +11,11 @@
         + Group
       </button>
     }
+    @if (activeTab() === 'guests') {
+      <button class="btn btn-primary" (click)="openAddGuest()" [disabled]="saving()">
+        + Guest
+      </button>
+    }
   </header>
 
   <!-- ── Tab bar ──────────────────────────────────────────────────────────── -->
@@ -20,6 +25,9 @@
     </button>
     <button class="tab-btn" [class.active]="activeTab() === 'modifiers'" (click)="setTab('modifiers')">
       Modifier Groups
+    </button>
+    <button class="tab-btn" [class.active]="activeTab() === 'guests'" (click)="setTab('guests')">
+      Guests
     </button>
   </nav>
 
@@ -491,6 +499,98 @@
       @if (tree.modifierGroups.length === 0 && !showAddGroup()) {
         <p class="empty">No modifier groups yet. Add one to enable drink customisation.</p>
       }
+    }
+  }
+
+  <!-- ══════════════════════════════════════════════════════════════════════
+       GUESTS TAB
+  ══════════════════════════════════════════════════════════════════════════ -->
+  @if (activeTab() === 'guests') {
+    <p class="guest-intro">
+      Guests sign in with a 4-digit PIN and stay signed in on that device until they sign out.
+      They can take orders and use the KDS, but can't open Admin or Analytics.
+    </p>
+
+    @if (!guestLoginEnabled()) {
+      <div class="error-banner">
+        Guest sign-in is off: the <code>GUEST_TOKEN_SECRET</code> app setting isn't configured on the server.
+      </div>
+    }
+    @if (guestsError()) {
+      <div class="error-banner">{{ guestsError() }}</div>
+    }
+
+    @if (showAddGuest()) {
+      <div class="inline-form card">
+        <h3>New Guest</h3>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="field-label">Name *</label>
+            <input class="input" type="text" placeholder="e.g. Sarah" [(ngModel)]="guestForm.name" />
+          </div>
+          <div class="form-field form-field-short">
+            <label class="field-label">PIN *</label>
+            <input class="input" type="text" inputmode="numeric" maxlength="4" placeholder="1234"
+              autocomplete="off" [(ngModel)]="guestForm.pin" (keyup.enter)="saveNewGuest()" />
+          </div>
+        </div>
+        @if (guestFormError()) { <p class="form-error">{{ guestFormError() }}</p> }
+        <div class="form-actions">
+          <button class="btn btn-primary" (click)="saveNewGuest()" [disabled]="saving()">Save</button>
+          <button class="btn btn-ghost" (click)="cancelAddGuest()">Cancel</button>
+        </div>
+      </div>
+    }
+
+    @if (guestsLoading() && guests().length === 0) {
+      <p class="loading">Loading guests…</p>
+    }
+
+    @if (guests().length > 0) {
+      <section class="card">
+        <ul class="option-list guest-list">
+          @for (guest of guests(); track guest.id) {
+            <li class="option-row">
+              @if (editingGuestId() === guest.id) {
+                <div class="guest-edit">
+                  <div class="form-row">
+                    <div class="form-field">
+                      <label class="field-label">Name</label>
+                      <input class="input" type="text" [(ngModel)]="editGuestForm.name" />
+                    </div>
+                    <div class="form-field form-field-short">
+                      <label class="field-label">New PIN</label>
+                      <input class="input" type="text" inputmode="numeric" maxlength="4" placeholder="keep"
+                        autocomplete="off" [(ngModel)]="editGuestForm.pin" (keyup.enter)="saveEditGuest()" />
+                    </div>
+                  </div>
+                  <p class="guest-meta">Changing the PIN signs this guest out on every device.</p>
+                  @if (guestFormError()) { <p class="form-error">{{ guestFormError() }}</p> }
+                  <div class="form-actions">
+                    <button class="btn btn-primary btn-sm" (click)="saveEditGuest()" [disabled]="saving()">Save</button>
+                    <button class="btn btn-ghost btn-sm" (click)="cancelEditGuest()">Cancel</button>
+                  </div>
+                </div>
+              } @else {
+                <div class="guest-info">
+                  <span class="option-name">{{ guest.name }}</span>
+                  <span class="guest-meta">
+                    @if (guest.lastLoginAt) { Last sign-in {{ guest.lastLoginAt | date:'MMM d, h:mm a' }} }
+                    @else { Never signed in }
+                  </span>
+                </div>
+                <div class="option-actions">
+                  <button class="btn btn-ghost btn-sm" (click)="startEditGuest(guest)" [disabled]="saving()">Edit</button>
+                  <button class="btn btn-ghost btn-sm" (click)="revokeGuest(guest)" [disabled]="saving()">Sign out</button>
+                  <button class="btn btn-danger btn-sm" (click)="deleteGuest(guest)" [disabled]="saving()">Delete</button>
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    } @else if (!guestsLoading() && !showAddGuest()) {
+      <p class="empty">No guests yet. Add one to hand out a PIN.</p>
     }
   }
 </div>
